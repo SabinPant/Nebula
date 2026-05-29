@@ -12,6 +12,22 @@
 > When something needs to change to make better technical sense, change it and note why.
 > **Quality over quantity. One clean, tested, secure feature beats ten broken ones.**
 
+📋 **SESSION BEHAVIOUR FOR CLAUDE CODE**
+
+> At the start of every session, the developer will tell you: which sprint we are on and what
+> the current task is. Focus only on that task. Do not implement future sprints speculatively.
+>
+> When generating multiple files for a task, create related files together as a logical unit
+> (e.g. controller + service + repository + DTO for one module = one unit). After each unit,
+> state clearly what was created, where each file lives, and what to run next. Wait for
+> confirmation before moving to the next unit.
+>
+> When something goes wrong, explain what the error means and how to fix it — do not just
+> output a silent code change. The developer needs to understand what happened.
+>
+> Keep responses focused. Skip restating instructions that were already in the prompt.
+> Lead with the code or command, follow with a brief explanation only if needed.
+
 ---
 
 ## What This Project Is
@@ -44,7 +60,7 @@ Nebula/
 
 | Layer         | Technology                                                                           |
 | ------------- | ------------------------------------------------------------------------------------ |
-| Backend       | NestJS v10+, Node.js v20+, TypeScript 5+                                             |
+| Backend       | NestJS v10+, Node.js v24+, TypeScript 5+                                             |
 | Database      | PostgreSQL v15+ via Prisma v5+ ORM                                                   |
 | Cache / Queue | Redis v7+, BullMQ                                                                    |
 | WebSocket     | Socket.io + NestJS Gateway                                                           |
@@ -1443,7 +1459,7 @@ This prevents path bugs that only appear in production.
 Production uses identical versions. No "I used PostgreSQL 14 in dev, 15 in prod" surprises.
 
 **6. Node version pinned**
-`.nvmrc` file: `20`. `Dockerfile`: `FROM node:20-alpine`. Everywhere the same.
+`.nvmrc` file: `24`. `Dockerfile`: `FROM node:24-alpine`. Everywhere the same.
 
 **7. No hardcoded localhost**
 All service URLs come from env vars. Inside Docker Compose, services talk via service names
