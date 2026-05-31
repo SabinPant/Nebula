@@ -837,6 +837,10 @@ When Nebula is done, interface is locked. Engine plugs in. Nebula does not notic
 server/src/
 ├── modules/
 │   ├── auth/              # JWT, Google OAuth, email verify, onboarding, invitations
+│   │   ├── auth.controller.ts
+│   │   ├── auth.service.ts
+│   │   ├── auth.repository.ts
+│   │   └── auth.module.ts
 │   ├── users/             # Profile management, avatar upload, broker listing
 │   ├── broker/            # Broker dashboard, top-up processing, flagging, activity log
 │   ├── wallet/            # Balance, reserved funds, transaction ledger, topup-info
@@ -1826,15 +1830,15 @@ Reject malformed data and log — never halt the engine process on bad data.
 
 ### PHASE 1 — Nebula Core with Mock Engine (Sprints 0–6)
 
-| Sprint | Weeks | Deliverable                                                                                                                                                                                                                                                                              |
-| ------ | ----- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| **0**  | 1–2   | **Scaffold** — Monorepo, Docker (PostgreSQL + Redis + Mailhog), NestJS boots, first migration, seed (Admin + 10 NEPSE stocks), mock engine running, ConfigService validates all env vars on startup                                                                                      |
-| **1**  | 3–4   | **Trader Auth Backend** — register (user+wallet atomic), email verify, login, JWT + device sessions, refresh rotation, logout, forgot/reset password, Google OAuth (isEmailVerified=true on OAuth), onboarding broker-select endpoint, global exception filter, Helmet, rate limiting    |
-| **2**  | 5–6   | **Auth Frontend + Broker Application Backend** — register/login/verify/onboarding pages, route guards (email + onboarding checks), broker application form + document upload (Cloudinary), duplicate email detection + existingUserId flagging, application status check, Admin notified |
-| **3**  | 7–8   | **Wallet Backend + Frontend** — balance, transaction history (cursor pagination), topup-info, wallet created atomically on registration, CHECK constraints migration, all mutations in Prisma transactions                                                                               |
-| **4**  | 9–10  | **Market Data + WebSocket** — Socket.io gateway, price:update from Redis pub/sub, stocks list/detail/history, market status, candlestick charts (TradingView), watchlist with price alert input, room cleanup on disconnect                                                              |
-| **5**  | 11–12 | **Orders Backend + Frontend** — place/cancel, balance reservation, Redis wallet lock, idempotency key, order validation DTO, EventEmitter ORDER_FILLED → wallet, real-time fill notifications, order history (cursor pagination)                                                         |
-| **6**  | 13–14 | **Portfolio Backend + Frontend** — holdings, P&L, portfolio:update WebSocket, previousClose cron at 18:01, price alert BullMQ worker                                                                                                                                                     |
+| Sprint | Weeks | Deliverable                                                                                                                                                                                                                                                                                                    |
+| ------ | ----- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **0**  | 1–2   | **Scaffold** — Monorepo, Docker (PostgreSQL + Redis + Mailhog), NestJS boots, first migration, seed (Admin + 10 NEPSE stocks), ConfigService validates all env vars on startup, mock engine scaffolded (empty entry point only — logic added in Sprint 3)                                                      |
+| **1**  | 3–4   | **Trader Auth Backend** — register (user+wallet atomic), email verify, login, JWT + device sessions, refresh rotation, logout, forgot/reset password, Google OAuth (isEmailVerified=true on OAuth), onboarding broker-select endpoint, global exception filter, Helmet, rate limiting                          |
+| **2**  | 5–6   | **Auth Frontend + Broker Application Backend** — register/login/verify/onboarding pages, route guards (email + onboarding checks), broker application form + document upload (Cloudinary), duplicate email detection + existingUserId flagging, application status check, Admin notified                       |
+| **3**  | 7–8   | **Wallet Backend + Frontend** — balance, transaction history (cursor pagination), topup-info, wallet created atomically on registration, raw SQL migration for CHECK constraints (availableBalance >= 0, reservedBalance >= 0) immediately after Wallet model is created, all mutations in Prisma transactions |
+| **4**  | 9–10  | **Market Data + WebSocket** — Socket.io gateway, price:update from Redis pub/sub, stocks list/detail/history, market status, candlestick charts (TradingView), watchlist with price alert input, room cleanup on disconnect                                                                                    |
+| **5**  | 11–12 | **Orders Backend + Frontend** — place/cancel, balance reservation, Redis wallet lock, idempotency key, order validation DTO, EventEmitter ORDER_FILLED → wallet, real-time fill notifications, order history (cursor pagination)                                                                               |
+| **6**  | 13–14 | **Portfolio Backend + Frontend** — holdings, P&L, portfolio:update WebSocket, previousClose cron at 18:01, price alert BullMQ worker                                                                                                                                                                           |
 
 ### PHASE 2 — Broker System (Sprints 7–8)
 
