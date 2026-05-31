@@ -9,73 +9,57 @@
 
 ## Current Module: Monorepo Skeleton
 
-## Last Updated: Not started yet
+## Last Updated: Not started
 
 ---
 
-## Sprint 0 — Monorepo Skeleton (Date: Will be filled on first day)
+## Sprint 0 — Monorepo Skeleton (Date: TBD)
 
-### Status: NOT STARTED YET
+### Status: NOT STARTED
 
-### Files Created Today:
+### Files Created:
 
-(Will be filled after first coding session)
+(To be filled)
 
 ### What Works:
 
-(Will be filled after first coding session)
+(To be filled)
 
-### Known Issues / Bugs:
+### Bugs:
 
-None yet
+None
 
-### Blockers:
+### Next Task:
 
-None yet
-
-### Next Task (Tomorrow):
-
-- Create root package.json with npm workspaces
-- Create server/ NestJS skeleton
-- Create client/ Vite + React skeleton
-- Create engine/ empty entry point
-
-### Notes:
-
-- First day of development. Following the user Sprint 0 prompt.
+- Root package.json with workspaces
+- Server NestJS skeleton
+- Client Vite skeleton
+- Engine entry point
 
 ---
 
-## FORMAT FOR CLAUDE CODE (Update this daily)
+## Format (Claude Code copies this daily)
 
-At end of each day, add NEW section at TOP with this format:
-
-## Sprint X — [Module Name] (Date: Month Day, Year)
+## Sprint X — [Name] (Date)
 
 ### Status: COMPLETED / IN PROGRESS
 
-### Files Created Today:
+### Files Created:
 
-- path/to/file
+- path/file
 
 ### What Works:
 
-- Feature description
+- feature
 
-### Known Issues / Bugs:
+### Bugs:
 
-- Issue or "None"
+- issue or None
 
-### Blockers:
+### Next Task:
 
-- Blocker or "None"
-
-### Next Task (Tomorrow):
-
-- What to build next
+- next thing
 
 ### Notes:
 
-- Important context for tomorrow
-
-Then update the "Current Sprint", "Current Module", and "Last Updated" at the top of file.
+- context for tomorrow
