@@ -863,6 +863,9 @@ server/src/
 │   │   └── onboarding.guard.ts        # Checks isOnboardingComplete
 │   └── config/
 │       └── config.service.ts          # Validates ALL env vars on startup — fail fast
+│                                      # ⚠️ Required in server/package.json:
+│                                      #    "@nestjs/config": "^3.0.0"
+│                                      #    "joi": "^17.11.0"
 └── shared/
     ├── utils/
     │   ├── currency.ts
@@ -1428,6 +1431,32 @@ VITE_WS_URL="ws://localhost:3001"
 # ❌ NO engine URL — client NEVER connects to engine directly
 ```
 
+> ⚠️ **Sprint 0 .env.example files:** Three `.env.example` files must be created in Sprint 0 —
+> one per package — mirroring the keys above with descriptive placeholders.
+>
+> `server/.env.example` — all server keys with placeholders (e.g. `your-jwt-secret-here`)
+>
+> `client/.env.example`:
+>
+> ```
+> VITE_API_URL="http://localhost:3001"
+> VITE_WS_URL="ws://localhost:3001"
+> ```
+>
+> `engine/.env.example`:
+>
+> ```
+> ENGINE_WS_PORT=3002
+> ENGINE_HTTP_PORT=3003
+> REDIS_URL="redis://localhost:6379"
+> MARKET_OPEN_TIME="09:30"
+> MARKET_CLOSE_TIME="18:00"
+> PRICE_UPDATE_INTERVAL_MS=3000
+> NEPAL_TIMEZONE="Asia/Kathmandu"
+> ```
+>
+> All three `.env.example` files are committed to Git. All three `.env.development` files are in `.gitignore`.
+
 ---
 
 ## PRODUCTION & LOCALHOST PARITY
@@ -1439,6 +1468,14 @@ The app must work identically in development and production. These rules prevent
 `ConfigService` reads all env vars on startup, validates with Joi. If any required var
 is missing in production, the server REFUSES to start with a clear error message.
 Never allow undefined env vars to cause silent runtime failures.
+
+> ⚠️ **Sprint 0 validation note:** `npx prisma validate` only checks schema syntax — it does
+> **not** test database connectivity. The real PostgreSQL connection check is `npm run start:dev`:
+> if `DATABASE_URL` is wrong or Postgres is not running, NestJS will throw a connection error
+> on boot. That is the intended fast-fail behaviour — fix the connection before proceeding.
+> To verify connectivity without booting the full server you can also run:
+> `npx prisma db execute --stdin <<< "SELECT 1"` — this returns an error immediately if
+> PostgreSQL is unreachable.
 
 **2. Absolute timezone handling**
 Never use `new Date()` for market logic without converting to Asia/Kathmandu.
@@ -1830,15 +1867,15 @@ Reject malformed data and log — never halt the engine process on bad data.
 
 ### PHASE 1 — Nebula Core with Mock Engine (Sprints 0–6)
 
-| Sprint | Weeks | Deliverable                                                                                                                                                                                                                                                                                                    |
-| ------ | ----- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| **0**  | 1–2   | **Scaffold** — Monorepo, Docker (PostgreSQL + Redis + Mailhog), NestJS boots, first migration, seed (Admin + 10 NEPSE stocks), ConfigService validates all env vars on startup, mock engine scaffolded (empty entry point only — logic added in Sprint 3)                                                      |
-| **1**  | 3–4   | **Trader Auth Backend** — register (user+wallet atomic), email verify, login, JWT + device sessions, refresh rotation, logout, forgot/reset password, Google OAuth (isEmailVerified=true on OAuth), onboarding broker-select endpoint, global exception filter, Helmet, rate limiting                          |
-| **2**  | 5–6   | **Auth Frontend + Broker Application Backend** — register/login/verify/onboarding pages, route guards (email + onboarding checks), broker application form + document upload (Cloudinary), duplicate email detection + existingUserId flagging, application status check, Admin notified                       |
-| **3**  | 7–8   | **Wallet Backend + Frontend** — balance, transaction history (cursor pagination), topup-info, wallet created atomically on registration, raw SQL migration for CHECK constraints (availableBalance >= 0, reservedBalance >= 0) immediately after Wallet model is created, all mutations in Prisma transactions |
-| **4**  | 9–10  | **Market Data + WebSocket** — Socket.io gateway, price:update from Redis pub/sub, stocks list/detail/history, market status, candlestick charts (TradingView), watchlist with price alert input, room cleanup on disconnect                                                                                    |
-| **5**  | 11–12 | **Orders Backend + Frontend** — place/cancel, balance reservation, Redis wallet lock, idempotency key, order validation DTO, EventEmitter ORDER_FILLED → wallet, real-time fill notifications, order history (cursor pagination)                                                                               |
-| **6**  | 13–14 | **Portfolio Backend + Frontend** — holdings, P&L, portfolio:update WebSocket, previousClose cron at 18:01, price alert BullMQ worker                                                                                                                                                                           |
+| Sprint | Weeks | Deliverable                                                                                                                                                                                                                                                                                                                                                                                                                              |
+| ------ | ----- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **0**  | 1–2   | **Scaffold** — Monorepo, Docker (PostgreSQL + Redis + Mailhog), NestJS boots, ConfigService validates all env vars on startup, mock engine scaffolded (empty entry point only — logic added in Sprint 3). `prisma/seed.ts` created as a **placeholder only** — no seeding logic yet because User and Stock models do not exist in Sprint 0. Actual Admin user + 10 NEPSE stock seeding added in Sprint 1 once those models are migrated. |
+| **1**  | 3–4   | **Trader Auth Backend** — register (user+wallet atomic), email verify, login, JWT + device sessions, refresh rotation, logout, forgot/reset password, Google OAuth (isEmailVerified=true on OAuth), onboarding broker-select endpoint, global exception filter, Helmet, rate limiting                                                                                                                                                    |
+| **2**  | 5–6   | **Auth Frontend + Broker Application Backend** — register/login/verify/onboarding pages, route guards (email + onboarding checks), broker application form + document upload (Cloudinary), duplicate email detection + existingUserId flagging, application status check, Admin notified                                                                                                                                                 |
+| **3**  | 7–8   | **Wallet Backend + Frontend** — balance, transaction history (cursor pagination), topup-info, wallet created atomically on registration, raw SQL migration for CHECK constraints (availableBalance >= 0, reservedBalance >= 0) immediately after Wallet model is created, all mutations in Prisma transactions                                                                                                                           |
+| **4**  | 9–10  | **Market Data + WebSocket** — Socket.io gateway, price:update from Redis pub/sub, stocks list/detail/history, market status, candlestick charts (TradingView), watchlist with price alert input, room cleanup on disconnect                                                                                                                                                                                                              |
+| **5**  | 11–12 | **Orders Backend + Frontend** — place/cancel, balance reservation, Redis wallet lock, idempotency key, order validation DTO, EventEmitter ORDER_FILLED → wallet, real-time fill notifications, order history (cursor pagination)                                                                                                                                                                                                         |
+| **6**  | 13–14 | **Portfolio Backend + Frontend** — holdings, P&L, portfolio:update WebSocket, previousClose cron at 18:01, price alert BullMQ worker                                                                                                                                                                                                                                                                                                     |
 
 ### PHASE 2 — Broker System (Sprints 7–8)
 
