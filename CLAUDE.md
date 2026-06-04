@@ -58,24 +58,24 @@ Nebula/
 
 ## Tech Stack
 
-| Layer         | Technology                                                                           |
-| ------------- | ------------------------------------------------------------------------------------ |
-| Backend       | NestJS v10+, Node.js v24+, TypeScript 5+                                             |
-| Database      | PostgreSQL v15+ via Prisma v5+ ORM                                                   |
-| Cache / Queue | Redis v7+, BullMQ                                                                    |
-| WebSocket     | Socket.io + NestJS Gateway                                                           |
-| Frontend      | React v18 + Vite + TypeScript                                                        |
-| Styling       | Tailwind CSS v3+                                                                     |
-| Charts        | TradingView Lightweight Charts                                                       |
-| State         | Zustand (UI state only) + React Query (server state)                                 |
-| Auth          | Passport.js — JWT + Google OAuth 2.0                                                 |
-| Validation    | class-validator + class-transformer (server) + Zod (engine only)                     |
-| AI            | Google Gemini API — server-side only, never exposed to client                        |
-| File Storage  | Cloudinary (broker documents, receipts, avatars) → migrate to AWS S3 when scaling    |
-| Email         | SMTP via Nodemailer — Mailhog in development, real SMTP in production                |
-| Logging       | Winston — debug level in dev, info level in prod                                     |
-| Testing       | Jest + Supertest                                                                     |
-| Deployment    | Vercel (client) + Render/Railway (server + engine) + Supabase (DB) + Upstash (Redis) |
+| Layer         | Technology                                                                        |
+| ------------- | --------------------------------------------------------------------------------- |
+| Backend       | NestJS v10+, Node.js v24+, TypeScript 5+                                          |
+| Database      | PostgreSQL v15+ via Prisma v5+ ORM                                                |
+| Cache / Queue | Redis v7+, BullMQ                                                                 |
+| WebSocket     | Socket.io + NestJS Gateway                                                        |
+| Frontend      | React v18 + Vite + TypeScript                                                     |
+| Styling       | Tailwind CSS v3+                                                                  |
+| Charts        | TradingView Lightweight Charts                                                    |
+| State         | Zustand (UI state only) + React Query (server state)                              |
+| Auth          | Passport.js — JWT + Google OAuth 2.0                                              |
+| Validation    | class-validator + class-transformer (server) + Zod (engine only)                  |
+| AI            | Google Gemini API — server-side only, never exposed to client                     |
+| File Storage  | Cloudinary (broker documents, receipts, avatars) → migrate to AWS S3 when scaling |
+| Email         | SMTP via Nodemailer — Mailhog in development, real SMTP in production             |
+| Logging       | Winston — debug level in dev, info level in prod                                  |
+| Testing       | Jest + Supertest                                                                  |
+| Deployment    | Vercel (client) + Render (server + engine) + Neon (PostgreSQL) + Upstash (Redis)  |
 
 ---
 
@@ -445,7 +445,39 @@ price?: number; // paise — only for LIMIT orders
 
 ---
 
-## PAGINATION STRATEGY
+## PASSWORD STRENGTH RULES
+
+Applied in `RegisterDto` and `ResetPasswordDto` via `class-validator`. These rules are
+**non-negotiable** — enforce them at the DTO level so they fail before the service is called.
+
+**Requirements:**
+
+- Minimum 8 characters
+- At least 1 uppercase letter (A–Z)
+- At least 1 lowercase letter (a–z)
+- At least 1 number (0–9)
+- At least 1 special character (`@`, `#`, `$`, `%`, `!`, `&`, `*`, `?` etc.)
+
+```typescript
+// In RegisterDto and ResetPasswordDto:
+@IsString()
+@MinLength(8, { message: 'Password must be at least 8 characters' })
+@Matches(
+  /^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)(?=.*[@#$%!&*?])[A-Za-z\d@#$%!&*?]{8,}$/,
+  {
+    message:
+      'Password must contain at least one uppercase letter, one lowercase letter, one number, and one special character (@#$%!&*?)',
+  },
+)
+password: string;
+```
+
+> ⚠️ Google OAuth users have `password = null` in the database — never apply password
+> validation to OAuth registration paths. Only apply to email/password registration and
+> password reset flows.
+
+> ⚠️ Never return the regex pattern in error messages exposed to users — use the plain
+> English message above. Never log passwords anywhere — not in Winston, not in error metadata.
 
 **All list endpoints use one of two consistent patterns:**
 
@@ -522,6 +554,26 @@ Without this, circuit breaker calculates % change against stale value
 Redis key: `ratelimit:email:{email}` — max 3 emails per hour per address.
 Applied to: forgot-password, resend-verification, broker application status updates.
 Prevents email bombing abuse.
+
+### Full Rate Limit Map (Sprint 1 — implement ALL of these, not just email)
+
+Every limit uses `@nestjs/throttler` with Redis store (`@nestjs/throttler-storage-redis`).
+Apply limits at the route level using `@Throttle()` decorator. Global fallback catches anything not explicitly decorated.
+
+| Route / Scope                      | Limit        | Window     | Redis Key Pattern           | Reason                             |
+| ---------------------------------- | ------------ | ---------- | --------------------------- | ---------------------------------- |
+| `POST /auth/login`                 | 5 attempts   | 15 minutes | `ratelimit:login:{ip}`      | Brute force protection             |
+| `POST /auth/register`              | 3 accounts   | 1 hour     | `ratelimit:register:{ip}`   | Prevent mass fake accounts         |
+| `POST /auth/forgot-password`       | 3 requests   | 1 hour     | `ratelimit:email:{email}`   | Email bombing                      |
+| `POST /auth/resend-verification`   | 3 requests   | 1 hour     | `ratelimit:email:{email}`   | Email bombing                      |
+| `POST /orders`                     | 10 orders    | 1 minute   | `ratelimit:orders:{userId}` | Order spam / system abuse          |
+| `POST /ai/ask`                     | 2 questions  | 24 hours   | `ratelimit:ai:{userId}`     | Gemini API cost control            |
+| `POST /ai/ask` (global)            | 50 requests  | 1 minute   | `ratelimit:ai:global`       | Protect against mass account abuse |
+| All other routes (global fallback) | 100 requests | 1 minute   | `ratelimit:global:{ip}`     | Catch-all protection               |
+
+> ⚠️ Login brute force — after 5 failed attempts in 15 minutes from same IP, return `429 RATE_LIMIT_EXCEEDED`.
+> Do NOT return `401 INVALID_CREDENTIALS` after limit is hit — always return 429 so attacker
+> cannot distinguish "wrong password" from "blocked". This prevents credential stuffing enumeration.
 
 ---
 
@@ -1455,11 +1507,100 @@ VITE_WS_URL="ws://localhost:3001"
 > NEPAL_TIMEZONE="Asia/Kathmandu"
 > ```
 >
-> All three `.env.example` files are committed to Git. All three `.env.development` files are in `.gitignore`.
+> All three `.env.example` files are committed to Git. All three `.env.development` files are in `.gitignore`. `.env.production` files are also in `.gitignore` — they are created temporarily during Sprint 15 deployment, imported to hosting dashboards, then deleted from the machine immediately.
 
 ---
 
-## PRODUCTION & LOCALHOST PARITY
+## PRODUCTION ENVIRONMENT VARIABLES
+
+Production env vars are **never committed to Git**. The safe workflow is:
+
+1. Create `.env.production` locally using the reference below
+2. Import it into Render/Vercel dashboards (both support .env file import directly)
+3. Delete `.env.production` from your machine immediately after importing
+4. Confirm with `git status` — it must never appear as a tracked file
+
+`.env.production` is listed in `.gitignore` as a safety net so Git refuses to track it
+even if you forget to delete it. Claude Code uses this section as the reference for what
+must be configured in each hosting dashboard.
+
+### Server — set in Render dashboard
+
+```bash
+# server — Render environment variables (set manually in dashboard)
+DATABASE_URL             # Neon connection string — get from Neon dashboard
+                         # Format: postgresql://user:pass@host.neon.tech/nebula?sslmode=require
+REDIS_URL                # Upstash connection string — get from Upstash dashboard
+                         # Format: rediss://default:token@host.upstash.io:6379
+JWT_ACCESS_SECRET        # Generate: openssl rand -hex 64
+JWT_ACCESS_EXPIRY        # 15m
+JWT_REFRESH_SECRET       # Generate: openssl rand -hex 64 (different from access secret)
+JWT_REFRESH_EXPIRY       # 7d
+APP_PORT                 # 3001 (Render sets PORT automatically — use process.env.PORT)
+NODE_ENV                 # production
+NEPAL_TIMEZONE           # Asia/Kathmandu
+GEMINI_API_KEY           # From Google AI Studio — server-side only
+ENGINE_HTTP_URL          # Render internal URL of engine service
+ENGINE_WS_URL            # Render internal WebSocket URL of engine service
+ENGINE_HEALTH_CHECK_INTERVAL_MS  # 5000
+CLOUDINARY_CLOUD_NAME    # From Cloudinary dashboard
+CLOUDINARY_API_KEY       # From Cloudinary dashboard
+CLOUDINARY_API_SECRET    # From Cloudinary dashboard
+GOOGLE_CLIENT_ID         # From Google Cloud Console
+GOOGLE_CLIENT_SECRET     # From Google Cloud Console
+GOOGLE_CALLBACK_URL      # https://your-render-backend.onrender.com/auth/google/callback
+SMTP_HOST                # Your SMTP provider host (e.g. smtp.resend.com)
+SMTP_PORT                # 465 (SSL) or 587 (TLS) — NOT 1025 (that's Mailhog dev only)
+SMTP_USER                # SMTP username from provider
+SMTP_PASS                # SMTP password / API key from provider
+SMTP_FROM                # noreply@yourdomain.com
+WEEKLY_TOPUP_CAP_PAISE   # 50000000
+CORS_ORIGIN              # https://your-vercel-frontend.vercel.app (exact URL, no trailing slash)
+FRONTEND_URL             # Same as CORS_ORIGIN — used for email links
+```
+
+### Engine — set in Render dashboard (separate service)
+
+```bash
+# engine — Render environment variables
+ENGINE_WS_PORT           # 3002
+ENGINE_HTTP_PORT         # 3003
+REDIS_URL                # Same Upstash URL as server
+MARKET_OPEN_TIME         # 09:30
+MARKET_CLOSE_TIME        # 18:00
+PRICE_UPDATE_INTERVAL_MS # 3000
+NEPAL_TIMEZONE           # Asia/Kathmandu
+NODE_ENV                 # production
+```
+
+### Client — set in Vercel dashboard
+
+```bash
+# client — Vercel environment variables
+VITE_API_URL             # https://your-render-backend.onrender.com
+VITE_WS_URL              # wss://your-render-backend.onrender.com
+# ❌ NO engine URL — client NEVER connects to engine directly
+```
+
+> ⚠️ **Critical production gotchas:**
+>
+> **Neon requires SSL:** `DATABASE_URL` must end with `?sslmode=require` — without it
+> Prisma will refuse to connect to Neon in production.
+>
+> **Upstash requires TLS:** Use `rediss://` (double s) not `redis://` for Upstash URL.
+> Plain `redis://` will fail silently on Upstash.
+>
+> **Render PORT:** Render injects `PORT` env var automatically. In `main.ts` use
+> `process.env.PORT || configService.get('APP_PORT')` so it works on both local and Render.
+>
+> **CORS_ORIGIN must be exact:** No trailing slash. `https://nebula.vercel.app` ✅
+> `https://nebula.vercel.app/` ❌ — the trailing slash will break all authenticated requests.
+>
+> **Google OAuth callback URL:** Must be updated in Google Cloud Console to the production
+> Render URL before OAuth works in production. Add both dev and prod URLs to the allowed list.
+>
+> **SMTP in production:** Mailhog is development only — it does not exist in production.
+> Use Resend (free tier: 3,000 emails/month) with `smtp.resend.com` as SMTP host.
 
 The app must work identically in development and production. These rules prevent the
 "works on my machine" failure mode.
@@ -1510,6 +1651,27 @@ All service URLs come from env vars. Inside Docker Compose, services talk via se
 Development: `CORS_ORIGIN=http://localhost:5173`
 Production: `CORS_ORIGIN=https://yourdomain.com`
 Never use `*` with credentials. CORS misconfiguration is a security vulnerability.
+
+Configure in `main.ts` exactly as follows — no deviations:
+
+```typescript
+// server/src/main.ts
+app.enableCors({
+  origin: configService.get<string>("CORS_ORIGIN"), // from env — never hardcoded
+  credentials: true, // required for HTTP-only cookie refresh tokens
+  methods: ["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"],
+  allowedHeaders: [
+    "Content-Type",
+    "Authorization",
+    "X-Idempotency-Key", // required for order placement
+    "X-Device-Id", // required for multi-device session management
+  ],
+});
+```
+
+> ⚠️ `credentials: true` means the `origin` MUST be an exact domain string — never `*`.
+> A wildcard origin with credentials is rejected by browsers AND is a security hole.
+> `CORS_ORIGIN` must be set correctly in both `.env.development` and production env vars.
 
 **9. Redis for all rate limiting**
 Never use in-memory store for rate limiting — breaks with multiple server instances.
@@ -1906,10 +2068,10 @@ Reject malformed data and log — never halt the engine process on bad data.
 
 ### PHASE 6 — Hardening & Deployment (Sprints 14–15)
 
-| Sprint | Weeks | Deliverable                                                                                                                                                       |
-| ------ | ----- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| **14** | 29–30 | **Security Hardening** — OWASP audit, auth pen test, file upload validation, rate limit tuning, Cloudinary access audit, `npm audit` all packages                 |
-| **15** | 31–32 | **Production Deployment** — Render/Railway + Vercel + Supabase + Upstash, production migration + seed, CORS production config, smoke test, health checks verified |
+| Sprint | Weeks | Deliverable                                                                                                                                                                                                                                                                                                                                                                                                                                        |
+| ------ | ----- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **14** | 29–30 | **Security Hardening** — OWASP audit, auth pen test, file upload validation, rate limit tuning, Cloudinary access audit, `npm audit` all packages                                                                                                                                                                                                                                                                                                  |
+| **15** | 31–32 | **Production Deployment** — Render (server + engine as separate services) + Vercel (client) + Neon (PostgreSQL) + Upstash (Redis), write `Dockerfile` + `render.yaml`, GitHub Actions CI/CD pipeline, `prisma migrate deploy` on production DB, production env vars set in all dashboards, CORS updated to Vercel production URL, smoke test all critical paths against production URLs, health checks verified, `DEPLOYMENT.md` checklist written |
 
 ### PHASE 7 — Growth Features (Post-MVP, Sprints 16–20)
 
