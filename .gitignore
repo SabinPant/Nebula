@@ -23,7 +23,6 @@ out/
 .env.staging
 
 # ─── Prisma ───────────────────────────────────────────────────────────────────
-prisma/migrations/migration_lock.toml
 **/node_modules/.prisma/
 **/src/generated/
 
@@ -69,7 +68,6 @@ $RECYCLE.BIN/
 .vscode/*
 !.vscode/extensions.json
 !.vscode/settings.json
-# Keep these two so teammates get the same editor config
 .idea/
 *.suo
 *.ntvs*
@@ -78,8 +76,6 @@ $RECYCLE.BIN/
 *.sw?
 
 # ─── Docker ───────────────────────────────────────────────────────────────────
-# Don't ignore docker-compose.yml — that gets committed
-# But ignore any local override files
 docker-compose.override.yml
 
 # ─── Uploads & Generated Files ────────────────────────────────────────────────
@@ -91,8 +87,6 @@ public/uploads/
 *.p12
 
 # ─── Package Manager Locks ────────────────────────────────────────────────────
-# Commit package-lock.json (keeps versions consistent)
-# Ignore yarn and pnpm locks if you're using npm
 yarn.lock
 pnpm-lock.yaml
 
@@ -100,3 +94,8 @@ pnpm-lock.yaml
 *.local
 .temp/
 tmp/
+
+# Project documentation (blueprint, status, decisions)
+CLAUDE.md
+STATUS.md
+DECISION.md
