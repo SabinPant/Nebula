@@ -95,7 +95,5 @@ pnpm-lock.yaml
 .temp/
 tmp/
 
-# Project documentation (blueprint, status, decisions)
-CLAUDE.md
-STATUS.md
-DECISION.md
+# Ignore all Markdown files
+*.md
