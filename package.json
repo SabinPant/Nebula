@@ -1,0 +1,25 @@
+{
+  "name": "nebula",
+  "version": "0.0.1",
+  "private": true,
+  "description": "Virtual NEPSE Stock Trading & Learning Platform",
+  "workspaces": [
+    "server",
+    "client",
+    "engine"
+  ],
+  "scripts": {
+    "dev": "npm run dev --workspaces --if-present",
+    "dev:server": "npm run dev -w server",
+    "dev:client": "npm run dev -w client",
+    "dev:engine": "npm run dev -w engine",
+    "build": "npm run build --workspaces --if-present",
+    "test": "npm run test --workspaces --if-present",
+    "lint": "npm run lint --workspaces --if-present",
+    "clean": "npm run clean --workspaces --if-present"
+  },
+  "engines": {
+    "node": ">=24.0.0",
+    "npm": ">=11.0.0"
+  }
+}
