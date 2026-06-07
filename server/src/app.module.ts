@@ -1,6 +1,16 @@
+/**
+ * Root Application Module
+ *
+ * Top-level NestJS module. Imports all feature modules and global configuration.
+ * ConfigModule is global — available in every module without re-importing.
+ *
+ * New feature modules are added to the imports array as they are built.
+ */
+
 import { Module } from '@nestjs/common';
 import { ConfigModule } from '@nestjs/config';
 import { configValidationSchema } from './core/config/config.validation';
+import { AuthModule } from './modules/auth/auth.module';
 
 @Module({
   imports: [
@@ -13,6 +23,7 @@ import { configValidationSchema } from './core/config/config.validation';
         abortEarly: false,
       },
     }),
+    AuthModule,
   ],
   controllers: [],
   providers: [],
