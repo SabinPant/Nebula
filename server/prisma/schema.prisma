@@ -7,7 +7,101 @@ datasource db {
   url      = env("DATABASE_URL")
 }
 
-model Placeholder {
-  id        String   @id @default(cuid())
-  createdAt DateTime @default(now())
+// ─── Enums ──────────────────────────────────────────────────────────────────
+
+enum UserType {
+  TRADER
+  BROKER
+  ADMIN
+}
+
+enum TransactionType {
+  INITIAL_DEPOSIT
+  ORDER_PLACE
+  ORDER_CANCEL
+  TRADE_SETTLE
+  COLLATERAL_TOP_UP
+  MANUAL_ADJUST
+}
+
+// ─── Models ─────────────────────────────────────────────────────────────────
+
+model User {
+  id                   String    @id @default(cuid())
+  email                String    @unique
+  password             String?
+  userType             UserType  @default(TRADER)
+  displayName          String?
+  avatarUrl            String?
+  phone                String?
+  brokerNumber         String?   @unique
+  isEmailVerified      Boolean   @default(false)
+  emailVerifiedAt      DateTime?
+  isOnboardingComplete Boolean   @default(false)
+  isSuspended          Boolean   @default(false)
+  suspendedReason      String?
+  deletedAt            DateTime?
+  isFirstLogin         Boolean   @default(true)
+  assignedBrokerId     String?
+  createdAt            DateTime  @default(now())
+  updatedAt            DateTime  @updatedAt
+
+  wallet             Wallet?
+  assignedBroker     User?            @relation("BrokerTraders", fields: [assignedBrokerId], references: [id])
+  assignedTraders    User[]           @relation("BrokerTraders")
+
+  @@index([email])
+  @@index([userType])
+  @@index([assignedBrokerId])
+  @@index([brokerNumber])
+  @@index([deletedAt])
+}
+
+model Wallet {
+  id               String   @id @default(cuid())
+  userId           String   @unique
+  availableBalance Int      @default(5000000)
+  reservedBalance  Int      @default(0)
+  totalDeposited   Int      @default(5000000)
+  createdAt        DateTime @default(now())
+  updatedAt        DateTime @updatedAt
+
+  user         User          @relation(fields: [userId], references: [id])
+  transactions Transaction[]
+
+  @@index([userId])
+}
+
+model Transaction {
+  id          String          @id @default(cuid())
+  walletId    String
+  type        TransactionType
+  amount      Int
+  description String
+  referenceId String?
+  createdAt   DateTime        @default(now())
+
+  wallet Wallet @relation(fields: [walletId], references: [id])
+
+  @@index([walletId, createdAt])
+  @@index([type, createdAt])
+}
+
+model Stock {
+  id            String   @id @default(cuid())
+  symbol        String   @unique
+  companyName   String
+  sector        String
+  currentPrice  Int
+  previousClose Int
+  volatility    Float    @default(0.02)
+  drift         Float    @default(0.0001)
+  isHalted      Boolean  @default(false)
+  haltReason    String?
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  @@index([symbol])
+  @@index([sector])
+  @@index([isHalted])
 }
