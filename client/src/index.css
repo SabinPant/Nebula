@@ -1,0 +1,11 @@
+/**
+ * Global Styles
+ *
+ * Tailwind CSS base styles, components, and utilities.
+ * All component-specific styles use Tailwind utility classes directly in JSX.
+ * No custom CSS beyond these three directives.
+ */
+
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
