@@ -1,0 +1,56 @@
+/**
+ * Error Code Constants
+ *
+ * Machine-readable error codes returned in every API error response.
+ * Frontend switches on error.response.data.code — never on HTTP status alone.
+ *
+ * HTTP status codes can be identical for different errors (e.g. both
+ * WALLET_INSUFFICIENT_FUNDS and MARKET_CLOSED return 400).
+ * The code field disambiguates so the UI can show the correct message.
+ *
+ * @see http-exception.filter.ts — the global filter that enforces this shape
+ */
+
+export const ErrorCodes = {
+  // Wallet
+  WALLET_INSUFFICIENT_FUNDS: 'WALLET_INSUFFICIENT_FUNDS',
+  WALLET_RESERVED_EXCEED: 'WALLET_RESERVED_EXCEED',
+
+  // Broker
+  BROKER_SUSPENDED: 'BROKER_SUSPENDED',
+  BROKER_NOT_ASSIGNED: 'BROKER_NOT_ASSIGNED',
+
+  // Top-up
+  DUPLICATE_TRANSACTION_REFERENCE: 'DUPLICATE_TRANSACTION_REFERENCE',
+  WEEKLY_CAP_EXCEEDED: 'WEEKLY_CAP_EXCEEDED',
+
+  // Engine
+  ENGINE_UNAVAILABLE: 'ENGINE_UNAVAILABLE',
+
+  // Market
+  MARKET_CLOSED: 'MARKET_CLOSED',
+  MARKET_STOCK_HALTED: 'MARKET_STOCK_HALTED',
+
+  // Orders
+  ORDER_NOT_CANCELLABLE: 'ORDER_NOT_CANCELLABLE',
+  IDEMPOTENCY_CONFLICT: 'IDEMPOTENCY_CONFLICT',
+
+  // Auth & Access
+  ONBOARDING_INCOMPLETE: 'ONBOARDING_INCOMPLETE',
+  EMAIL_NOT_VERIFIED: 'EMAIL_NOT_VERIFIED',
+  ACCOUNT_SUSPENDED: 'ACCOUNT_SUSPENDED',
+  INVALID_INVITATION_TOKEN: 'INVALID_INVITATION_TOKEN',
+  INVITATION_ALREADY_USED: 'INVITATION_ALREADY_USED',
+
+  // Rate Limiting
+  RATE_LIMIT_EXCEEDED: 'RATE_LIMIT_EXCEEDED',
+
+  // Standard
+  VALIDATION_ERROR: 'VALIDATION_ERROR',
+  UNAUTHORIZED: 'UNAUTHORIZED',
+  FORBIDDEN: 'FORBIDDEN',
+  NOT_FOUND: 'NOT_FOUND',
+  INTERNAL_ERROR: 'INTERNAL_ERROR',
+} as const;
+
+export type ErrorCode = (typeof ErrorCodes)[keyof typeof ErrorCodes];
