@@ -1,22 +1,37 @@
+/**
+ * Application Entry Point
+ *
+ * Bootstraps the NestJS server with all global middleware and configuration.
+ * Sets up Helmet (security headers), CORS (locked to env origin), cookie parsing
+ * (refresh token HTTP-only cookies), and global validation (DTO whitelist).
+ *
+ * ConfigService validates all environment variables on startup via Joi —
+ * the server refuses to start with missing or invalid configuration.
+ *
+ * The global exception filter is registered here so every thrown HttpException
+ * is caught and returned in the standardized { statusCode, error, message, code, timestamp } shape.
+ */
+
 import { NestFactory } from '@nestjs/core';
 import { ValidationPipe } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import helmet from 'helmet';
-import * as cookieParser from 'cookie-parser';
 import { AppModule } from './app.module';
+import { GlobalExceptionFilter } from './core/filters/http-exception.filter';
+
+// cookie-parser uses CommonJS module.exports = function
+// The @types package expects ESM default import but the runtime export is a bare function
+// eslint-disable-next-line @typescript-eslint/no-require-imports
+const cookieParser = require('cookie-parser');
 
 async function bootstrap(): Promise<void> {
   const app = await NestFactory.create(AppModule);
 
   const configService = app.get(ConfigService);
 
-  // Security headers — 14 headers set by default
   app.use(helmet());
-
-  // Cookie parser — required for refresh token HTTP-only cookies
   app.use(cookieParser());
 
-  // CORS — locked to exact origin from env, credentials enabled for cookies
   app.enableCors({
     origin: configService.get<string>('CORS_ORIGIN'),
     credentials: true,
@@ -29,7 +44,6 @@ async function bootstrap(): Promise<void> {
     ],
   });
 
-  // Global validation pipe — strips unknown fields, rejects non-whitelisted
   app.useGlobalPipes(
     new ValidationPipe({
       whitelist: true,
@@ -38,10 +52,8 @@ async function bootstrap(): Promise<void> {
     }),
   );
 
-  // Global exception filter will be registered here when created
-  // app.useGlobalFilters(new GlobalExceptionFilter());
+  app.useGlobalFilters(new GlobalExceptionFilter());
 
-  // Use PORT from Render in production, fall back to APP_PORT from env
   const port = process.env.PORT || configService.get<number>('APP_PORT') || 3001;
 
   await app.listen(port);
