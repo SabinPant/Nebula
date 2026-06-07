@@ -65,6 +65,10 @@
     "@typescript-eslint/eslint-plugin": "^7.0.0",
     "@typescript-eslint/parser": "^7.0.0"
   },
+  "prisma": {
+    "seed": "ts-node --compiler-options {\"module\":\"commonjs\"} prisma/seed.ts"
+  },
+
   "jest": {
     "moduleFileExtensions": ["js", "json", "ts"],
     "rootDir": "src",
