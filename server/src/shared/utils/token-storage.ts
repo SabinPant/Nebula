@@ -12,7 +12,8 @@
 
 import { Injectable } from '@nestjs/common';
 import { RedisClient } from '../../core/database/redis.client';
-import { randomBytes, createHash } from 'node:crypto';
+import { randomBytes, createHash, randomUUID } from 'node:crypto';
+
 
 @Injectable()
 export class TokenStorage {
@@ -27,7 +28,7 @@ export class TokenStorage {
    * Not exposed to logs or error messages.
    */
   private generateToken(): string {
-    return randomBytes(16).toString('hex');
+    return randomUUID();
   }
 
   /**

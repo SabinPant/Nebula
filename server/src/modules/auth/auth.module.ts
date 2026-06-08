@@ -16,6 +16,7 @@ import { AuthService } from './auth.service';
 import { AuthRepository } from './auth.repository';
 import { PrismaService } from '../../core/database/prisma.service';
 import { EmailService } from '../../shared/services/email.service';
+import { TokenStorage } from '../../shared/utils/token-storage';
 
 @Module({
   imports: [
@@ -31,7 +32,7 @@ import { EmailService } from '../../shared/services/email.service';
     }),
   ],
   controllers: [AuthController],
-  providers: [AuthService, AuthRepository, PrismaService, EmailService],
+  providers: [AuthService, AuthRepository, PrismaService, EmailService, TokenStorage],
   exports: [AuthService],
 })
 export class AuthModule {}

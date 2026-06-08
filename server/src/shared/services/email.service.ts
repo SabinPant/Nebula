@@ -28,18 +28,18 @@ export class EmailService {
   private readonly from: string;
 
   constructor(private readonly configService: ConfigService) {
-    this.from = configService.get<string>('SMTP_FROM') || 'noreply@nebula.com';
+  this.from = configService.get<string>('SMTP_FROM') || 'noreply@nebula.com';
 
-    this.transporter = nodemailer.createTransport({
-      host: configService.get<string>('SMTP_HOST'),
-      port: configService.get<number>('SMTP_PORT'),
-      secure: configService.get<number>('SMTP_PORT') === 465,
-      auth: {
-        user: configService.get<string>('SMTP_USER') || undefined,
-        pass: configService.get<string>('SMTP_PASS') || undefined,
-      },
-    });
-  }
+  const smtpUser = configService.get<string>('SMTP_USER');
+  const smtpPass = configService.get<string>('SMTP_PASS');
+
+  this.transporter = nodemailer.createTransport({
+    host: configService.get<string>('SMTP_HOST'),
+    port: configService.get<number>('SMTP_PORT'),
+    secure: configService.get<number>('SMTP_PORT') === 465,
+    ...(smtpUser && smtpPass ? { auth: { user: smtpUser, pass: smtpPass } } : {}),
+  });
+}
 
   /**
    * Sends an email.

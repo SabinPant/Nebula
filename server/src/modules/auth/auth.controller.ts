@@ -39,9 +39,8 @@ export class AuthController {
   @Post('verify-email')
   @HttpCode(HttpStatus.OK)
   async verifyEmail(@Body() dto: VerifyEmailDto) {
-    // TODO: Decode token from Redis, get userId, call service
-    return this.authService.verifyEmail('placeholder-userId');
-  }
+  return this.authService.verifyEmail(dto.token);
+ }
 
   @Post('forgot-password')
   @HttpCode(HttpStatus.OK)
@@ -52,7 +51,6 @@ export class AuthController {
   @Post('reset-password')
   @HttpCode(HttpStatus.OK)
   async resetPassword(@Body() dto: ResetPasswordDto) {
-    // TODO: Validate token from Redis, get userId, call service
-    return this.authService.resetPassword('placeholder-userId', dto.password);
-  }
+    return this.authService.resetPassword(dto.token, dto.password);
+  } 
 }

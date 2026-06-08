@@ -26,6 +26,7 @@ import { generateAccessToken, generateRefreshToken } from '../../shared/utils/to
 import { RegisterDto } from './dto/register.dto';
 import { LoginDto } from './dto/login.dto';
 import { UserType } from '@prisma/client';
+import { TokenStorage } from '../../shared/utils/token-storage';
 
 @Injectable()
 export class AuthService {
@@ -34,6 +35,8 @@ export class AuthService {
     private readonly emailService: EmailService,
     private readonly jwtService: JwtService,
     private readonly configService: ConfigService,
+    private readonly tokenStorage: TokenStorage,
+
   ) {}
 
   /**
@@ -42,38 +45,44 @@ export class AuthService {
    * Sends verification email.
    */
   async register(dto: RegisterDto) {
-    const existing = await this.authRepository.findUserByEmail(dto.email);
-    if (existing) {
-      throw new ConflictException({
-        code: 'EMAIL_ALREADY_EXISTS',
-        message: 'An account with this email already exists',
-      });
-    }
-
-    const hashed = await hashPassword(dto.password);
-
-    const user = await this.authRepository.createUserWithWallet(
-      {
-        email: dto.email,
-        password: hashed,
-        displayName: dto.displayName,
-        userType: UserType.TRADER,
-      },
-      {
-        availableBalance: 5_000_000, // Rs. 50,000 in paise
-        totalDeposited: 5_000_000,
-      },
-      {
-        type: 'INITIAL_DEPOSIT',
-        amount: 5_000_000,
-        description: 'Initial virtual deposit of Rs. 50,000',
-      },
-    );
-
-    // TODO: Send verification email (Sprint 1 — after Redis integration)
-
-    return { id: user.id, email: user.email };
+  const existing = await this.authRepository.findUserByEmail(dto.email);
+  if (existing) {
+    throw new ConflictException({
+      code: 'EMAIL_ALREADY_EXISTS',
+      message: 'An account with this email already exists',
+    });
   }
+
+  const hashed = await hashPassword(dto.password);
+
+  const user = await this.authRepository.createUserWithWallet(
+    {
+      email: dto.email,
+      password: hashed,
+      displayName: dto.displayName,
+      userType: UserType.TRADER,
+    },
+    {
+      availableBalance: 5_000_000,
+      totalDeposited: 5_000_000,
+    },
+    {
+      type: 'INITIAL_DEPOSIT',
+      amount: 5_000_000,
+      description: 'Initial virtual deposit of Rs. 50,000',
+    },
+  );
+
+  const token = await this.tokenStorage.createEmailVerificationToken(user.id);
+
+  await this.emailService.sendMail(
+    dto.email,
+    'Verify your Nebula account',
+    `<p>Welcome to Nebula!</p><p>Click the link below to verify your email:</p><p><a href="${this.configService.get<string>('FRONTEND_URL')}/verify-email?token=${token}">Verify Email</a></p>`,
+  );
+
+  return { id: user.id, email: user.email };
+}
 
   /**
    * Authenticates a user and returns a token pair.
@@ -138,33 +147,64 @@ export class AuthService {
    * Verifies a user's email via token.
    * Token validation and Redis lookup handled in controller.
    */
-  async verifyEmail(userId: string) {
-    await this.authRepository.verifyUserEmail(userId);
-    return { message: 'Email verified successfully' };
+  async verifyEmail(token: string) {
+  const userId = await this.tokenStorage.validateEmailVerificationToken(token);
+  if (!userId) {
+    throw new BadRequestException({
+      code: 'INVALID_VERIFICATION_TOKEN',
+      message: 'The verification link is invalid or has expired',
+    });
   }
+
+  await this.authRepository.verifyUserEmail(userId);
+  return { message: 'Email verified successfully' };
+}
 
   /**
    * Initiates password reset flow.
    * Always returns 200 even if email not found — prevents user enumeration.
    */
-  async forgotPassword(email: string) {
-    const user = await this.authRepository.findUserByEmail(email);
-    if (user) {
-      // TODO: Generate reset token, store in Redis, send email (Sprint 1 — after Redis integration)
-    }
-    return { message: 'If an account exists with this email, a reset link has been sent' };
+ async forgotPassword(email: string) {
+  // Rate limit check: max 3 emails per hour per address
+  const emailCount = await this.tokenStorage.incrementEmailRateLimit(email);
+  if (emailCount > 3) {
+    throw new BadRequestException({
+      code: 'RATE_LIMIT_EXCEEDED',
+      message: 'Too many requests. Please wait before trying again.',
+    });
   }
+
+  const user = await this.authRepository.findUserByEmail(email);
+  if (user) {
+    const token = await this.tokenStorage.createPasswordResetToken(user.id);
+    await this.emailService.sendMail(
+      email,
+      'Reset your Nebula password',
+      `<p>Click the link below to reset your password:</p><p><a href="${this.configService.get<string>('FRONTEND_URL')}/reset-password?token=${token}">Reset Password</a></p><p>This link expires in 1 hour.</p>`,
+    );
+  }
+
+  // Always return the same response — prevents user enumeration
+  return { message: 'If an account exists with this email, a reset link has been sent' };
+}
 
   /**
    * Resets password using a single-use token.
    * Token validation handled in controller.
    */
-  async resetPassword(userId: string, newPassword: string) {
-    const hashed = await hashPassword(newPassword);
-    await this.authRepository.updatePassword(userId, hashed);
-    return { message: 'Password reset successfully' };
-  }
+  async resetPassword(token: string, newPassword: string) {
+  const userId = await this.tokenStorage.validatePasswordResetToken(token);
+  if (!userId) {
+    throw new BadRequestException({
+      code: 'INVALID_RESET_TOKEN',
+      message: 'The reset link is invalid or has expired',
+    });
+ }
 
+  const hashed = await hashPassword(newPassword);
+  await this.authRepository.updatePassword(userId, hashed);
+  return { message: 'Password reset successfully' };
+  }
   /**
    * Selects a broker and completes trader onboarding.
    */
