@@ -2,16 +2,16 @@
  * Root Application Module
  *
  * Top-level NestJS module. Imports all feature modules and global configuration.
- * ConfigModule is global — available in every module without re-importing.
- *
- * New feature modules are added to the imports array as they are built.
+ * ConfigModule and RedisClient are global — available in every module without re-importing.
  */
 
-import { Module } from '@nestjs/common';
+import { Module, Global } from '@nestjs/common';
 import { ConfigModule } from '@nestjs/config';
 import { configValidationSchema } from './core/config/config.validation';
 import { AuthModule } from './modules/auth/auth.module';
+import { RedisClient } from './core/database/redis.client';
 
+@Global()
 @Module({
   imports: [
     ConfigModule.forRoot({
@@ -26,6 +26,7 @@ import { AuthModule } from './modules/auth/auth.module';
     AuthModule,
   ],
   controllers: [],
-  providers: [],
+  providers: [RedisClient],
+  exports: [RedisClient],
 })
 export class AppModule {}
