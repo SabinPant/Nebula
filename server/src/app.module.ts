@@ -2,14 +2,21 @@
  * Root Application Module
  *
  * Top-level NestJS module. Imports all feature modules and global configuration.
- * ConfigModule and RedisClient are global — available in every module without re-importing.
+ * ConfigModule, RedisClient, and ThrottlerModule are global — available everywhere.
+ *
+ * ThrottlerModule uses Redis storage for rate limiting — never in-memory.
+ * This ensures limits work across multiple server instances in production.
  */
 
 import { Module, Global } from '@nestjs/common';
 import { ConfigModule } from '@nestjs/config';
+import { ThrottlerModule } from '@nestjs/throttler';
+import { ThrottlerGuard } from './core/guards/throttler.guard';
 import { configValidationSchema } from './core/config/config.validation';
 import { AuthModule } from './modules/auth/auth.module';
 import { RedisClient } from './core/database/redis.client';
+import { ThrottlerRedisStorage } from './core/config/throttler-redis.storage';
+import { RATE_LIMITS } from './core/config/rate-limit.config';
 
 @Global()
 @Module({
@@ -23,10 +30,26 @@ import { RedisClient } from './core/database/redis.client';
         abortEarly: false,
       },
     }),
+    ThrottlerModule.forRootAsync({
+      inject: [RedisClient],
+      useFactory: (redisClient: RedisClient) => ({
+        throttlers: [{
+          ttl: RATE_LIMITS.GLOBAL.ttl,
+          limit: RATE_LIMITS.GLOBAL.limit,
+        }],
+        storage: new ThrottlerRedisStorage(redisClient),
+      }),
+    }),
     AuthModule,
   ],
   controllers: [],
-  providers: [RedisClient],
+  providers: [
+    RedisClient,
+    {
+      provide: 'APP_GUARD',
+      useClass: ThrottlerGuard,
+    },
+  ],
   exports: [RedisClient],
 })
 export class AppModule {}
