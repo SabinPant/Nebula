@@ -26,7 +26,6 @@ const cookieParser = require('cookie-parser');
 
 async function bootstrap(): Promise<void> {
   const app = await NestFactory.create(AppModule);
-
   const configService = app.get(ConfigService);
 
   app.use(helmet());
@@ -54,8 +53,9 @@ async function bootstrap(): Promise<void> {
 
   app.useGlobalFilters(new GlobalExceptionFilter());
 
-  const port = process.env.PORT || configService.get<number>('APP_PORT') || 3001;
+  app.setGlobalPrefix('api/v1');
 
+  const port = process.env.PORT || configService.get<number>('APP_PORT') || 3001;
   await app.listen(port);
   console.log(`Nebula server running on port ${port}`);
 }
