@@ -28,13 +28,14 @@ export class JwtAuthGuard extends AuthGuard('jwt') {
   handleRequest<TUser = any>(
     err: any,
     user: TUser | false,
-    info: any,
-    context: ExecutionContext,
+    
   ): TUser {
+    // If the strategy already threw a typed exception, preserve it
     if (err instanceof UnauthorizedException) {
       throw err;
     }
 
+    // Any other error or missing user → generic unauthorized
     if (err || !user) {
       throw new UnauthorizedException({
         code: 'UNAUTHORIZED',
@@ -44,4 +45,5 @@ export class JwtAuthGuard extends AuthGuard('jwt') {
 
     return user;
   }
+
 }
