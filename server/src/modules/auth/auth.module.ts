@@ -17,6 +17,10 @@ import { AuthRepository } from './auth.repository';
 import { PrismaService } from '../../core/database/prisma.service';
 import { EmailService } from '../../shared/services/email.service';
 import { TokenStorage } from '../../shared/utils/token-storage';
+import { JwtStrategy } from './strategies/jwt.strategy';
+import { JwtAuthGuard } from './guards/jwt-auth.guard';
+import { RolesGuard } from './guards/roles.guard';
+import { OnboardingGuard } from './guards/onboarding.guard';
 
 @Module({
   imports: [
@@ -32,7 +36,17 @@ import { TokenStorage } from '../../shared/utils/token-storage';
     }),
   ],
   controllers: [AuthController],
-  providers: [AuthService, AuthRepository, PrismaService, EmailService, TokenStorage],
-  exports: [AuthService],
+  providers: [
+  AuthService,
+  AuthRepository,
+  PrismaService,
+  EmailService,
+  TokenStorage,
+  JwtStrategy,
+  JwtAuthGuard,
+  RolesGuard,
+  OnboardingGuard,
+],
+  exports: [AuthService, JwtAuthGuard, RolesGuard, OnboardingGuard],
 })
 export class AuthModule {}
