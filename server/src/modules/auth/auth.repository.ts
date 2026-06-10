@@ -7,33 +7,40 @@
  *
  * Every method does exactly one database operation and returns plain data.
  * The service layer calls these methods and composes them into business flows.
+ *
+ * All user lookups filter deletedAt: null — soft-deleted users are invisible
+ * to authentication. Admin audit queries in later sprints will have their own
+ * explicit methods for accessing deleted records.
  */
 
 import { Injectable } from '@nestjs/common';
 import { PrismaService } from '../../core/database/prisma.service';
-import { Prisma, UserType } from '@prisma/client';
+import { Prisma, UserType, TransactionType } from '@prisma/client';
 
 @Injectable()
 export class AuthRepository {
   constructor(private readonly prisma: PrismaService) {}
 
   /**
-   * Finds a user by email. Returns null if not found.
-   * Used by login, registration duplicate check, forgot password.
+   * Finds a user by email. Returns null if not found or soft-deleted.
+   * Uses findFirst instead of findUnique because deletedAt is not part
+   * of a unique index — Prisma's findUnique only accepts @unique fields.
+   * Since email is unique, findFirst returns at most one row with zero
+   * performance difference.
    */
   async findUserByEmail(email: string) {
-    return this.prisma.user.findUnique({
-      where: { email },
+    return this.prisma.user.findFirst({
+      where: { email, deletedAt: null },
     });
   }
 
   /**
-   * Finds a user by ID. Returns null if not found.
-   * Used by JWT strategy to load user from token payload.
+   * Finds a user by ID. Returns null if not found or soft-deleted.
+   * Same findFirst pattern as findUserByEmail for the same reason.
    */
   async findUserById(id: string) {
-    return this.prisma.user.findUnique({
-      where: { id },
+    return this.prisma.user.findFirst({
+      where: { id, deletedAt: null },
     });
   }
 
@@ -48,7 +55,7 @@ export class AuthRepository {
   async createUserWithWallet(
     data: Prisma.UserCreateInput,
     walletData: { availableBalance: number; totalDeposited: number },
-    transactionData: { type: string; amount: number; description: string },
+    transactionData: { type: TransactionType; amount: number; description: string },
   ) {
     return this.prisma.$transaction(async (tx) => {
       const user = await tx.user.create({ data });
@@ -64,7 +71,7 @@ export class AuthRepository {
       await tx.transaction.create({
         data: {
           walletId: wallet.id,
-          type: transactionData.type as any,
+          type: transactionData.type,
           amount: transactionData.amount,
           description: transactionData.description,
         },
