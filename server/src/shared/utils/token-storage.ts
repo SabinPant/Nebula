@@ -12,7 +12,7 @@
 
 import { Injectable } from '@nestjs/common';
 import { RedisClient } from '../../core/database/redis.client';
-import { randomBytes, createHash, randomUUID } from 'node:crypto';
+import { createHash, randomUUID } from 'node:crypto';
 
 
 @Injectable()
