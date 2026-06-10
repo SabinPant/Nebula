@@ -4,6 +4,10 @@
  * HTTP route handlers for authentication.
  * Routes ONLY — no business logic, no database calls, no validation beyond DTOs.
  * Every method receives a validated DTO, calls the service, and returns the response.
+ *
+ * The login endpoint sets the refresh token as an HTTP-only cookie per the
+ * security spec: httpOnly, secure in production, sameSite strict, scoped to
+ * auth routes. The refresh token is never exposed in the response body.
  */
 
 import {
@@ -12,8 +16,10 @@ import {
   Body,
   HttpCode,
   HttpStatus,
+  Res,
 } from '@nestjs/common';
 import { Throttle } from '@nestjs/throttler';
+import { Response } from 'express';
 import { AuthService } from './auth.service';
 import { RegisterDto } from './dto/register.dto';
 import { LoginDto } from './dto/login.dto';
@@ -36,8 +42,24 @@ export class AuthController {
   @Post('login')
   @HttpCode(HttpStatus.OK)
   @Throttle({ default: { limit: RATE_LIMITS.LOGIN.limit, ttl: RATE_LIMITS.LOGIN.ttl } })
-  async login(@Body() dto: LoginDto) {
-    return this.authService.login(dto);
+  async login(
+    @Body() dto: LoginDto,
+    @Res({ passthrough: true }) res: Response,
+  ) {
+    const result = await this.authService.login(dto);
+
+    // Set refresh token as HTTP-only cookie — never exposed to JavaScript
+    res.cookie('refreshToken', result.refreshToken, {
+      httpOnly: true,
+      secure: process.env.NODE_ENV === 'production',
+      sameSite: 'strict',
+      maxAge: 7 * 24 * 60 * 60 * 1000, // 7 days
+      path: '/api/v1/auth',
+    });
+
+    // Return everything except the refresh token in the response body
+    const { refreshToken: _, ...response } = result;
+    return response;
   }
 
   @Post('verify-email')
