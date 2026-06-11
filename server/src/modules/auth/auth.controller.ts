@@ -6,8 +6,10 @@
  * Every method receives a validated DTO, calls the service, and returns the response.
  *
  * The login endpoint sets the refresh token as an HTTP-only cookie per the
- * security spec: httpOnly, secure in production, sameSite strict, scoped to
- * auth routes. The refresh token is never exposed in the response body.
+ * security spec: httpOnly, secure in production, sameSite environment-aware
+ * ('strict' in development, 'none' in production for cross-domain
+ * Vercel <-> Render requests), scoped to auth routes. The refresh token is
+ * never exposed in the response body.
  */
 
 import {
@@ -48,11 +50,15 @@ export class AuthController {
   ) {
     const result = await this.authService.login(dto);
 
-    // Set refresh token as HTTP-only cookie — never exposed to JavaScript
+    // Set refresh token as HTTP-only cookie — never exposed to JavaScript.
+    // sameSite must be 'none' in production: client (Vercel) and server (Render)
+    // are on different domains, and 'strict'/'lax' would silently drop the
+    // cookie on cross-domain requests. 'none' requires secure: true, which is
+    // already enforced below for production.
     res.cookie('refreshToken', result.refreshToken, {
       httpOnly: true,
       secure: process.env.NODE_ENV === 'production',
-      sameSite: 'strict',
+      sameSite: process.env.NODE_ENV === 'production' ? 'none' : 'strict',
       maxAge: 7 * 24 * 60 * 60 * 1000, // 7 days
       path: '/api/v1/auth',
     });
