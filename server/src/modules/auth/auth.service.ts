@@ -269,6 +269,29 @@ export class AuthService {
     return { accessToken, refreshToken };
   }
 
+
+    /**
+   * Logs out a user by blacklisting the current access token's jti
+   * and cleaning up the device's refresh token and session set entry.
+   *
+   * @param userId - The authenticated user's ID
+   * @param jti - The JWT ID of the current access token (for blacklisting)
+   * @param deviceId - Optional device ID extracted from the refresh cookie.
+   *   If provided, the refresh token hash is deleted and the device is
+   *   removed from the session set. If omitted, only the access token is
+   *   blacklisted (the refresh cookie will expire naturally).
+   */
+  async logout(userId: string, jti: string, deviceId?: string): Promise<void> {
+    // Blacklist the access token so it cannot be reused
+    await this.tokenStorage.blacklistAccessToken(jti);
+
+    // If we can identify the device, clean up its refresh token and session set
+    if (deviceId) {
+      await this.tokenStorage.invalidateRefreshToken(userId, deviceId);
+      await this.tokenStorage.removeFromSessionSet(userId, deviceId);
+    }
+  }
+
   /**
    * Verifies a user's email via token.
    * Token is single-use — deleted from Redis after successful validation.

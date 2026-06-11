@@ -31,11 +31,16 @@ import { ForgotPasswordDto } from './dto/forgot-password.dto';
 import { ResetPasswordDto } from './dto/reset-password.dto';
 import { VerifyEmailDto } from './dto/verify-email.dto';
 import { RATE_LIMITS } from '../../core/config/rate-limit.config';
-
+import { UseGuards } from '@nestjs/common';
+import { JwtService } from '@nestjs/jwt';
+import { JwtAuthGuard } from './guards/jwt-auth.guard';
 
 @Controller('auth')
 export class AuthController {
-  constructor(private readonly authService: AuthService) {}
+  constructor(
+  private readonly authService: AuthService,
+  private readonly jwtService: JwtService,
+) {}
 
   @Post('register')
   @HttpCode(HttpStatus.CREATED)
@@ -103,6 +108,58 @@ export class AuthController {
 
     // Return only the access token — refresh token is in the cookie
     return { accessToken: result.accessToken };
+  }
+
+    /**
+   * Logs out the current device.
+   * Blacklists the access token's jti and removes the refresh token
+   * from Redis so it can never be used again. Clears the refresh cookie.
+   *
+   * Protected by JwtAuthGuard — only authenticated users can log out.
+   * The access token is decoded to extract the jti for blacklisting.
+   * The refresh cookie is decoded (without verification) to extract the
+   * deviceId for targeted session cleanup. If the cookie is missing or
+   * malformed, only the access token is blacklisted — the refresh token
+   * will expire naturally in at most 7 days.
+   */
+  @Post('logout')
+  @HttpCode(HttpStatus.OK)
+  @UseGuards(JwtAuthGuard)
+  @Throttle({ default: { limit: RATE_LIMITS.LOGIN.limit, ttl: RATE_LIMITS.LOGIN.ttl } })
+  async logout(
+    @Req() req: Request,
+    @Res({ passthrough: true }) res: Response,
+  ) {
+    // Extract jti from the current access token (decode without verification —
+    // the JwtAuthGuard already verified the signature)
+    const authHeader = req.headers.authorization!;
+    const accessToken = authHeader.startsWith('Bearer ')
+      ? authHeader.slice(7)
+      : authHeader;
+
+    const decoded = this.jwtService.decode(accessToken) as { jti?: string } | null;
+    const jti = decoded?.jti;
+
+    // Extract deviceId from the refresh cookie (if present)
+    let deviceId: string | undefined;
+    const refreshCookie = req.cookies?.refreshToken;
+    if (refreshCookie) {
+      try {
+        const refreshPayload = this.jwtService.decode(refreshCookie) as {
+          deviceId?: string;
+        } | null;
+        deviceId = refreshPayload?.deviceId;
+      } catch {
+        // Cookie is malformed — ignore, we'll still blacklist the access token
+      }
+    }
+
+    await this.authService.logout(req.user!.id, jti!, deviceId);
+
+    // Clear the refresh cookie regardless — it's no longer valid
+    res.clearCookie('refreshToken', { path: '/api/v1/auth' });
+
+    return { message: 'Logged out successfully' };
   }
 
   @Post('verify-email')
