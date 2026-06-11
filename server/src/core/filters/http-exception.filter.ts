@@ -25,6 +25,7 @@ import {
 } from '@nestjs/common';
 import { Prisma } from '@prisma/client';
 import { Request, Response } from 'express';
+import { TokenExpiredError, JsonWebTokenError } from 'jsonwebtoken';
 
 @Catch()
 export class GlobalExceptionFilter implements ExceptionFilter {
@@ -46,6 +47,17 @@ export class GlobalExceptionFilter implements ExceptionFilter {
       message = prismaError.message;
       code = prismaError.code;
     }
+
+    // ─── JWT errors (expired or malformed tokens) ──────────────────────────
+    else if (
+      exception instanceof TokenExpiredError ||
+      exception instanceof JsonWebTokenError
+    ) {
+      status = HttpStatus.UNAUTHORIZED;
+      message = 'Invalid or expired token';
+      code = 'UNAUTHORIZED';
+    }
+
     // ─── Typed HTTP exceptions thrown by services ──────────────────────────
     else if (exception instanceof HttpException) {
       status = exception.getStatus();
@@ -77,6 +89,15 @@ export class GlobalExceptionFilter implements ExceptionFilter {
       this.logger.error(
         `${request.method} ${request.url} → ${status} [${code}] ${message}`,
       );
+    }
+      
+    // Clear poisoned refresh cookie on token revocation or account suspension
+    // so the client doesn't keep sending a dead cookie on every request.
+    if (
+      request.path === '/api/v1/auth/refresh' &&
+      (code === 'TOKEN_REVOKED' || code === 'ACCOUNT_SUSPENDED')
+    ) {
+      response.clearCookie('refreshToken', { path: '/api/v1/auth' });
     }
 
     // Standardized error response — never exposes internals
