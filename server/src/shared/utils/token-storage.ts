@@ -3,8 +3,12 @@
  *
  * Centralized Redis-based token management for the entire server.
  * Every token (email verify, password reset, refresh, blacklist) follows
- * the same pattern: generated UUID, stored as hashed value in Redis,
- * single-use, with TTL.
+ * the same pattern: generated UUID, stored in Redis, single-use, with TTL.
+ *
+ * Refresh token session management uses a Redis Set per user to track
+ * all active device IDs. This enables bulk invalidation on token reuse
+ * detection (possible theft) without a blocking KEYS/SCAN operation.
+ * The Set TTL is reset on every login and rotation (sliding 7-day expiry).
  *
  * Tokens are never logged, never returned in error messages, and never
  * stored in the database — Redis is the sole source of truth for ephemeral tokens.
@@ -14,17 +18,17 @@ import { Injectable } from '@nestjs/common';
 import { RedisClient } from '../../core/database/redis.client';
 import { createHash, randomUUID } from 'node:crypto';
 
-
 @Injectable()
 export class TokenStorage {
   private readonly redis;
+  private readonly REFRESH_TOKEN_TTL = 604800; // 7 days in seconds
 
   constructor(private readonly redisClient: RedisClient) {
     this.redis = this.redisClient.getClient();
   }
 
   /**
-   * Generates a cryptographically random token (UUID v4 format).
+   * Generates a cryptographically random UUID v4 token.
    * Not exposed to logs or error messages.
    */
   private generateToken(): string {
@@ -50,13 +54,13 @@ export class TokenStorage {
     const token = this.generateToken();
     const hashed = this.hashToken(token);
     const key = `email:verify:${hashed}`;
-    await this.redis.set(key, userId, 'EX', 86400); // 24h
+    await this.redis.set(key, userId, 'EX', 86400);
     return token;
   }
 
   /**
    * Validates an email verification token and returns the userId.
-   * Token is single-use — deleted immediately after validation.
+   * Single-use — deleted immediately after validation.
    * Returns null if invalid or expired.
    */
   async validateEmailVerificationToken(token: string): Promise<string | null> {
@@ -64,7 +68,7 @@ export class TokenStorage {
     const key = `email:verify:${hashed}`;
     const userId = await this.redis.get(key);
     if (userId) {
-      await this.redis.del(key); // Single-use: delete after reading
+      await this.redis.del(key);
       return userId;
     }
     return null;
@@ -81,7 +85,7 @@ export class TokenStorage {
     const token = this.generateToken();
     const hashed = this.hashToken(token);
     const key = `password:reset:${hashed}`;
-    await this.redis.set(key, userId, 'EX', 3600); // 1h
+    await this.redis.set(key, userId, 'EX', 3600);
     return token;
   }
 
@@ -95,7 +99,7 @@ export class TokenStorage {
     const key = `password:reset:${hashed}`;
     const userId = await this.redis.get(key);
     if (userId) {
-      await this.redis.del(key); // Single-use: delete after reading
+      await this.redis.del(key);
       return userId;
     }
     return null;
@@ -107,11 +111,17 @@ export class TokenStorage {
    * Stores a refresh token hash for a user's device.
    * TTL: 7 days — matches JWT_REFRESH_EXPIRY.
    */
-  async storeRefreshToken(userId: string, deviceId: string, refreshToken: string): Promise<void> {
-    const hashed = this.hashToken(refreshToken);
-    const key = `refreshtoken:${userId}:${deviceId}`;
-    await this.redis.set(key, hashed, 'EX', 604800); // 7 days
-  }
+ async storeRefreshToken(userId: string, deviceId: string, refreshToken: string): Promise<void> {
+  const hashed = this.hashToken(refreshToken);
+  const tokenKey = `refreshtoken:${userId}:${deviceId}`;
+  const sessionKey = `user_sessions:${userId}`;
+
+  const pipeline = this.redis.pipeline();
+  pipeline.set(tokenKey, hashed, 'EX', this.REFRESH_TOKEN_TTL);
+  pipeline.sadd(sessionKey, deviceId);
+  pipeline.expire(sessionKey, this.REFRESH_TOKEN_TTL);
+  await pipeline.exec();
+}
 
   /**
    * Validates that a refresh token matches the stored hash for a user's device.
@@ -126,23 +136,47 @@ export class TokenStorage {
   }
 
   /**
-   * Invalidates a device's refresh token (on logout or refresh rotation).
+   * Invalidates a device's refresh token (on logout or rotation).
    */
   async invalidateRefreshToken(userId: string, deviceId: string): Promise<void> {
     const key = `refreshtoken:${userId}:${deviceId}`;
     await this.redis.del(key);
   }
 
+  /**
+   * Removes a device ID from the user's active session set.
+   * Called on logout only. Rotation keeps the same deviceId, so no SREM needed.   */
+  async removeFromSessionSet(userId: string, deviceId: string): Promise<void> {
+    const key = `user_sessions:${userId}`;
+    await this.redis.srem(key, deviceId);
+  }
+
+  /**
+   * Invalidates ALL refresh tokens for a user across every device.
+   * Called on token reuse detection (possible theft) and on user suspension.
+   * Uses the session Set — no KEYS/SCAN required. Bounded by device count.
+   */
+  async invalidateAllUserSessions(userId: string): Promise<void> {
+    const setKey = `user_sessions:${userId}`;
+    const deviceIds = await this.redis.smembers(setKey);
+
+    if (deviceIds.length > 0) {
+      const keys = deviceIds.map((deviceId: string) => `refreshtoken:${userId}:${deviceId}`);
+      await this.redis.del(keys);
+    }
+
+    await this.redis.del(setKey);
+  }
+
   // ─── JWT Blacklist ──────────────────────────────────────────────────────
 
   /**
    * Blacklists a JWT access token by its jti (JWT ID).
-   * TTL: 15 minutes — matches JWT_ACCESS_EXPIRY. After that, the token
-   * would expire naturally, so the blacklist entry is cleaned up.
+   * TTL: 15 minutes — matches JWT_ACCESS_EXPIRY.
    */
   async blacklistAccessToken(jti: string): Promise<void> {
     const key = `token:blacklist:${jti}`;
-    await this.redis.set(key, '1', 'EX', 900); // 15 min
+    await this.redis.set(key, '1', 'EX', 900);
   }
 
   /**
@@ -158,14 +192,13 @@ export class TokenStorage {
 
   /**
    * Checks if an email has exceeded the rate limit for a given action.
-   * Used for forgot-password and resend-verification (3 per hour).
    * Returns the current count. Caller decides if it exceeds the limit.
    */
   async incrementEmailRateLimit(email: string): Promise<number> {
     const key = `ratelimit:email:${email}`;
     const count = await this.redis.incr(key);
     if (count === 1) {
-      await this.redis.expire(key, 3600); // 1 hour window on first attempt
+      await this.redis.expire(key, 3600);
     }
     return count;
   }
