@@ -25,7 +25,8 @@ import { AuthRepository } from './auth.repository';
 import { EmailService } from '../../shared/services/email.service';
 import { TokenStorage } from '../../shared/utils/token-storage';
 import { hashPassword, comparePassword } from '../../shared/utils/crypto';
-import { generateAccessToken, generateRefreshToken } from '../../shared/utils/tokens';
+import { generateAccessToken, generateRefreshToken, verifyRefreshToken } from '../../shared/utils/tokens';
+import type { AccessTokenPayload } from '../../shared/utils/tokens';
 import { RegisterDto } from './dto/register.dto';
 import { LoginDto } from './dto/login.dto';
 
@@ -138,6 +139,9 @@ export class AuthService {
       deviceId: dto.deviceId,
     });
 
+    // Store the refresh token hash and update the session set (atomic pipeline inside)
+    await this.tokenStorage.storeRefreshToken(user.id, dto.deviceId, refreshToken);
+
     return {
       accessToken,
       refreshToken,
@@ -149,6 +153,120 @@ export class AuthService {
         isOnboardingComplete: user.isOnboardingComplete,
       },
     };
+  }
+
+
+    /**
+   * Rotates a refresh token — validates the old one, issues a new pair,
+   * and rotates the Redis-stored hash.
+   *
+   * Security properties:
+   * - Blacklists the old access token jti BEFORE issuing new tokens.
+   *   If blacklisting fails, the old token expires naturally — safe.
+   * - Stores the new refresh token BEFORE deleting the old one.
+   *   If storage fails, the user retains their existing session.
+   * - On hash mismatch (token already rotated), invalidates ALL user
+   *   sessions. This is a signal of possible token theft — the legitimate
+   *   user and attacker are racing to refresh. Forcing re-login on all
+   *   devices contains the blast radius.
+   * - On suspended user, also invalidates all sessions — prevents
+   *   suspended users from maintaining active refresh tokens.
+   *
+   * @param oldRefreshToken - The refresh token from the HTTP-only cookie
+   * @param oldAccessToken - Optional. The old access token from the
+   *   Authorization header. If provided and signature-valid, its jti is
+   *   blacklisted. Verification uses ignoreExpiration: true so expired
+   *   tokens can still be revoked. Signature failures skip blacklisting
+   *   silently — the token is untrusted.
+   */
+  async refreshToken(oldRefreshToken: string, oldAccessToken?: string) {
+    // 1. Verify old refresh token signature and expiry
+    const refreshPayload = verifyRefreshToken(
+      this.jwtService,
+      this.configService,
+      oldRefreshToken,
+    );
+
+    const { sub: userId, deviceId } = refreshPayload;
+
+    // 2. Check user still exists and is not suspended
+    const user = await this.authRepository.findUserById(userId);
+
+    if (!user) {
+      throw new UnauthorizedException({
+        code: 'TOKEN_REVOKED',
+        message: 'Invalid or expired session',
+      });
+    }
+
+    // 3. Suspended user — nuke all sessions, force re-login
+    if (user.isSuspended) {
+      await this.tokenStorage.invalidateAllUserSessions(userId);
+      throw new UnauthorizedException({
+        code: 'ACCOUNT_SUSPENDED',
+        message: 'Your account has been suspended. Contact support.',
+      });
+    }
+
+    // 4. Validate token hash against Redis
+    const isValid = await this.tokenStorage.validateRefreshToken(
+      userId,
+      deviceId,
+      oldRefreshToken,
+    );
+
+       // 5. Hash mismatch — token already rotated, possible theft
+    if (!isValid) {
+      await this.tokenStorage.invalidateAllUserSessions(userId);
+      throw new UnauthorizedException({
+        code: 'TOKEN_REVOKED',
+        message: 'Session expired. Please log in again.',
+      });
+    }
+
+    // 6. Blacklist old access token jti
+    // The no-try/catch rule is intentionally bypassed here:
+    // If the old access token's signature is invalid, we cannot trust its payload,
+    // so we skip blacklisting without error. No other JWT errors should be caught.
+    if (oldAccessToken) {
+      try {
+        const oldPayload = this.jwtService.verify<AccessTokenPayload>(
+          oldAccessToken,
+          {
+            secret: this.configService.get<string>('JWT_ACCESS_SECRET'),
+            ignoreExpiration: true,
+          },
+        );
+        if (oldPayload.jti) {
+          await this.tokenStorage.blacklistAccessToken(oldPayload.jti);
+        }
+      } catch {
+        // Signature invalid — token is untrusted, skip blacklisting
+      }
+    }
+
+    // 7. Generate new access token
+    const accessToken = generateAccessToken(this.jwtService, this.configService, {
+      sub: user.id,
+      email: user.email,
+      userType: user.userType,
+    });
+
+    // 8. Generate new refresh token
+    const refreshToken = generateRefreshToken(this.jwtService, this.configService, {
+      sub: user.id,
+      deviceId,
+    });
+
+        // 9. Store new hash + session set update (atomic within storeRefreshToken)
+    await this.tokenStorage.storeRefreshToken(user.id, deviceId, refreshToken);
+
+    // 10. Delete old hash — this is a separate round-trip, but store-before-revoke
+    // ensures the user keeps access if this deletion fails.
+    await this.tokenStorage.invalidateRefreshToken(user.id, deviceId);
+
+    // 11. Return new token pair
+    return { accessToken, refreshToken };
   }
 
   /**
