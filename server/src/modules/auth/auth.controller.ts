@@ -19,9 +19,11 @@ import {
   HttpCode,
   HttpStatus,
   Res,
+  Req,
+  UnauthorizedException,
 } from '@nestjs/common';
 import { Throttle } from '@nestjs/throttler';
-import { Response } from 'express';
+import { Request, Response } from 'express';
 import { AuthService } from './auth.service';
 import { RegisterDto } from './dto/register.dto';
 import { LoginDto } from './dto/login.dto';
@@ -29,6 +31,7 @@ import { ForgotPasswordDto } from './dto/forgot-password.dto';
 import { ResetPasswordDto } from './dto/reset-password.dto';
 import { VerifyEmailDto } from './dto/verify-email.dto';
 import { RATE_LIMITS } from '../../core/config/rate-limit.config';
+
 
 @Controller('auth')
 export class AuthController {
@@ -50,22 +53,56 @@ export class AuthController {
   ) {
     const result = await this.authService.login(dto);
 
-    // Set refresh token as HTTP-only cookie — never exposed to JavaScript.
-    // sameSite must be 'none' in production: client (Vercel) and server (Render)
-    // are on different domains, and 'strict'/'lax' would silently drop the
-    // cookie on cross-domain requests. 'none' requires secure: true, which is
-    // already enforced below for production.
-    res.cookie('refreshToken', result.refreshToken, {
-      httpOnly: true,
-      secure: process.env.NODE_ENV === 'production',
-      sameSite: process.env.NODE_ENV === 'production' ? 'none' : 'strict',
-      maxAge: 7 * 24 * 60 * 60 * 1000, // 7 days
-      path: '/api/v1/auth',
-    });
+    res.cookie('refreshToken', result.refreshToken, this.getRefreshCookieOptions());
 
     // Return everything except the refresh token in the response body
     const { refreshToken: _, ...response } = result;
     return response;
+  }
+
+     /**
+   * Rotates the refresh token — issues a new access token and refresh token
+   * in exchange for a valid (non-revoked) refresh token from the HTTP-only cookie.
+   *
+   * The old access token from the Authorization header is optionally blacklisted
+   * if its signature is valid. The refresh token is rotated: the old one is
+   * invalidated in Redis, the new one is stored and set as a cookie.
+   *
+   * No JWT guard — the refresh cookie is the credential. Expired access tokens
+   * (the primary reason clients call this endpoint) would be rejected by the guard.
+   */
+  @Post('refresh')
+  @HttpCode(HttpStatus.OK)
+  @Throttle({ default: { limit: RATE_LIMITS.LOGIN.limit, ttl: RATE_LIMITS.LOGIN.ttl } })
+  async refresh(
+    @Req() req: Request,
+    @Res({ passthrough: true }) res: Response,
+  ) {
+    // Read refresh token from HTTP-only cookie
+    const oldRefreshToken = req.cookies?.refreshToken;
+
+    if (!oldRefreshToken) {
+      throw new UnauthorizedException({
+        code: 'TOKEN_REVOKED',
+        message: 'No refresh token provided',
+      });
+    }
+
+    // Read old access token from Authorization header (optional — for jti blacklisting)
+    const authHeader = req.headers.authorization;
+    const oldAccessToken = authHeader?.startsWith('Bearer ')
+      ? authHeader.slice(7)
+      : undefined;
+
+    const result = await this.authService.refreshToken(
+      oldRefreshToken,
+      oldAccessToken,
+    );
+
+    res.cookie('refreshToken', result.refreshToken, this.getRefreshCookieOptions());
+
+    // Return only the access token — refresh token is in the cookie
+    return { accessToken: result.accessToken };
   }
 
   @Post('verify-email')
@@ -86,4 +123,21 @@ export class AuthController {
   async resetPassword(@Body() dto: ResetPasswordDto) {
     return this.authService.resetPassword(dto.token, dto.password);
   }
+
+
+    /**
+   * Returns the standard HTTP-only cookie options for refresh tokens.
+   * Single source of truth — login and refresh both use this so the
+   * cookie configuration never drifts out of sync.
+   */
+  private getRefreshCookieOptions() {
+    return {
+      httpOnly: true,
+      secure: process.env.NODE_ENV === 'production',
+      sameSite: (process.env.NODE_ENV === 'production' ? 'none' : 'strict') as 'none' | 'strict',
+      maxAge: 7 * 24 * 60 * 60 * 1000, // 7 days
+      path: '/api/v1/auth',
+    };
+  }
+
 }
