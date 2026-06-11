@@ -21,6 +21,7 @@ import {
   Res,
   Req,
   UnauthorizedException,
+  UseGuards,
 } from '@nestjs/common';
 import { Throttle } from '@nestjs/throttler';
 import { Request, Response } from 'express';
@@ -31,7 +32,6 @@ import { ForgotPasswordDto } from './dto/forgot-password.dto';
 import { ResetPasswordDto } from './dto/reset-password.dto';
 import { VerifyEmailDto } from './dto/verify-email.dto';
 import { RATE_LIMITS } from '../../core/config/rate-limit.config';
-import { UseGuards } from '@nestjs/common';
 import { JwtService } from '@nestjs/jwt';
 import { JwtAuthGuard } from './guards/jwt-auth.guard';
 
@@ -154,7 +154,8 @@ export class AuthController {
       }
     }
 
-    await this.authService.logout(req.user!.id, jti!, deviceId);
+    const user = req.user as { id: string; email: string; userType: string };
+    await this.authService.logout(user.id, jti!, deviceId);
 
     // Clear the refresh cookie regardless — it's no longer valid
     res.clearCookie('refreshToken', { path: '/api/v1/auth' });
