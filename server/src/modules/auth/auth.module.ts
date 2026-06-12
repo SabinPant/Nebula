@@ -21,6 +21,7 @@ import { JwtStrategy } from './strategies/jwt.strategy';
 import { JwtAuthGuard } from './guards/jwt-auth.guard';
 import { RolesGuard } from './guards/roles.guard';
 import { OnboardingGuard } from './guards/onboarding.guard';
+import { GoogleStrategy } from './strategies/google.strategy';
 
 @Module({
   imports: [
@@ -46,6 +47,7 @@ import { OnboardingGuard } from './guards/onboarding.guard';
   JwtAuthGuard,
   RolesGuard,
   OnboardingGuard,
+  GoogleStrategy,
 ],
   exports: [AuthService, JwtAuthGuard, RolesGuard, OnboardingGuard],
 })

@@ -40,13 +40,58 @@ import { JwtAuthGuard } from './guards/jwt-auth.guard';
 import { ChangePasswordDto } from './dto/change-password.dto';
 import { ResendVerificationDto } from './dto/resend-verification.dto';
 import { SelectBrokerDto } from './dto/select-broker.dto';
+import { AuthGuard } from '@nestjs/passport';
+import { ConfigService } from '@nestjs/config';
 
 @Controller('auth')
 export class AuthController {
-  constructor(
+constructor(
   private readonly authService: AuthService,
   private readonly jwtService: JwtService,
+  private readonly configService: ConfigService,
 ) {}
+
+  /**
+   * Initiates Google OAuth 2.0 authentication.
+   * Redirects to Google's consent screen.
+   */
+  @Get('google')
+  @UseGuards(AuthGuard('google'))
+  async googleAuth() {
+    // Passport handles the redirect — no body needed
+  }
+
+  /**
+   * Handles the callback from Google OAuth 2.0.
+   * Passport validates the token and attaches the profile to req.user.
+   * Calls googleLogin() to find/create the user, issues JWT tokens,
+   * sets the refresh cookie, and redirects to the frontend.
+   */
+  @Get('google/callback')
+  @UseGuards(AuthGuard('google'))
+  async googleAuthRedirect(
+    @Req() req: Request,
+    @Res() res: Response,
+  ) {
+    const frontendUrl = this.configService.get<string>('FRONTEND_URL') || 'http://localhost:5173';
+
+    try {
+      const profile = req.user as { email: string; displayName: string; avatarUrl: string | null };
+      const result = await this.authService.googleLogin(profile);
+
+      res.cookie('refreshToken', result.refreshToken, this.getRefreshCookieOptions());
+
+      const params = `token=${result.accessToken}&deviceId=${result.deviceId}`;
+      const redirectPath = result.user.isOnboardingComplete
+        ? '/dashboard'
+        : '/onboarding/select-broker';
+
+      return res.redirect(`${frontendUrl}${redirectPath}?${params}`);
+    } catch (error) {
+      const code = (error as any)?.response?.code || 'google_auth_failed';
+      return res.redirect(`${frontendUrl}/auth/login?error=${code}`);
+    }
+  }
 
   @Post('register')
   @HttpCode(HttpStatus.CREATED)
