@@ -29,6 +29,7 @@ import { generateAccessToken, generateRefreshToken, verifyRefreshToken } from '.
 import type { AccessTokenPayload } from '../../shared/utils/tokens';
 import { RegisterDto } from './dto/register.dto';
 import { LoginDto } from './dto/login.dto';
+import { randomUUID } from 'node:crypto';
 
 @Injectable()
 export class AuthService {
@@ -290,6 +291,85 @@ export class AuthService {
       await this.tokenStorage.invalidateRefreshToken(userId, deviceId);
       await this.tokenStorage.removeFromSessionSet(userId, deviceId);
     }
+  }
+
+    /**
+   * Authenticates a user via Google OAuth.
+   *
+   * If no account exists with the Google email, creates one with
+   * password: null and isEmailVerified: true (Google proved ownership).
+   * If an unverified email-registered account exists, implicitly verifies it.
+   * Suspended users are rejected regardless of email status.
+   *
+   * Returns tokens + user for the controller to set cookies and redirect.
+   */
+  async googleLogin(profile: { email: string; displayName: string; avatarUrl: string | null }) {
+    let user = await this.authRepository.findUserByEmail(profile.email);
+
+    if (user) {
+      // Reject suspended users
+      if (user.isSuspended) {
+        throw new UnauthorizedException({
+          code: 'ACCOUNT_SUSPENDED',
+          message: 'Your account has been suspended. Contact support.',
+        });
+      }
+
+      // Implicitly verify email — Google already proved ownership
+      if (!user.isEmailVerified) {
+        await this.authRepository.verifyUserEmail(user.id);
+      }
+    } else {
+      // Create new user with Google profile
+      user = await this.authRepository.createUserWithWallet(
+        {
+          email: profile.email,
+          password: null,
+          displayName: profile.displayName,
+          userType: UserType.TRADER,
+          isEmailVerified: true,
+          emailVerifiedAt: new Date(),
+          avatarUrl: profile.avatarUrl,
+        },
+        {
+          availableBalance: 5_000_000,
+          totalDeposited: 5_000_000,
+        },
+        {
+          type: TransactionType.INITIAL_DEPOSIT,
+          amount: 5_000_000,
+          description: 'Initial virtual deposit of Rs. 50,000',
+        },
+      );
+    }
+
+    const deviceId = randomUUID();
+
+    const accessToken = generateAccessToken(this.jwtService, this.configService, {
+      sub: user.id,
+      email: user.email,
+      userType: user.userType,
+    });
+
+    const refreshToken = generateRefreshToken(this.jwtService, this.configService, {
+      sub: user.id,
+      deviceId,
+    });
+
+    await this.tokenStorage.storeRefreshToken(user.id, deviceId, refreshToken);
+
+    return {
+      accessToken,
+      refreshToken,
+      deviceId,
+      user: {
+        id: user.id,
+        email: user.email,
+        displayName: user.displayName,
+        userType: user.userType,
+        isOnboardingComplete: user.isOnboardingComplete,
+      },
+    };
   }
 
     /**
