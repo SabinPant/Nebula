@@ -14,6 +14,7 @@
 
 import {
   Controller,
+  Get,
   Post,
   Patch,
   Body,
@@ -38,6 +39,7 @@ import { JwtService } from '@nestjs/jwt';
 import { JwtAuthGuard } from './guards/jwt-auth.guard';
 import { ChangePasswordDto } from './dto/change-password.dto';
 import { ResendVerificationDto } from './dto/resend-verification.dto';
+import { SelectBrokerDto } from './dto/select-broker.dto';
 
 @Controller('auth')
 export class AuthController {
@@ -200,6 +202,30 @@ export class AuthController {
   @HttpCode(HttpStatus.OK)
   async resetPassword(@Body() dto: ResetPasswordDto) {
     return this.authService.resetPassword(dto.token, dto.password);
+  }
+
+    /**
+   * Returns the list of active brokers for trader onboarding selection.
+   */
+  @Get('onboarding/brokers')
+  @HttpCode(HttpStatus.OK)
+  @UseGuards(JwtAuthGuard)
+  async getBrokers() {
+    return this.authService.getActiveBrokers();
+  }
+
+  /**
+   * Selects a broker and completes trader onboarding.
+   */
+  @Post('onboarding/select-broker')
+  @HttpCode(HttpStatus.OK)
+  @UseGuards(JwtAuthGuard)
+  async selectBroker(
+    @Req() req: Request,
+    @Body() dto: SelectBrokerDto,
+  ) {
+    const user = req.user as { id: string };
+    return this.authService.selectBroker(user.id, dto.brokerId);
   }
 
     /**
