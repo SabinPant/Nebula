@@ -373,6 +373,35 @@ export class AuthService {
     return { message: 'If an account exists with this email, a reset link has been sent' };
   }
 
+    /**
+   * Resends the email verification token.
+   * Mirrors the token generation and email sending pattern from register() —
+   * same Redis key format (email:verify:{hashed}), same 24h TTL, same template.
+   * Enumeration-safe — always returns 200 regardless of whether the email
+   * exists or is already verified.
+   */
+  async resendVerification(email: string) {
+    const emailCount = await this.tokenStorage.incrementEmailRateLimit(email);
+    if (emailCount > 3) {
+      throw new BadRequestException({
+        code: 'RATE_LIMIT_EXCEEDED',
+        message: 'Too many requests. Please wait before trying again.',
+      });
+    }
+
+    const user = await this.authRepository.findUserByEmail(email);
+    if (user && !user.isEmailVerified) {
+      const token = await this.tokenStorage.createEmailVerificationToken(user.id);
+      await this.emailService.sendMail(
+        email,
+        'Verify your Nebula account',
+        `<p>Welcome to Nebula!</p><p>Click the link below to verify your email:</p><p><a href="${this.configService.get<string>('FRONTEND_URL')}/verify-email?token=${token}">Verify Email</a></p>`,
+      );
+    }
+
+    return { message: 'If an account with this email exists and is not verified, a verification email has been sent' };
+  }
+
   /**
    * Resets password using a single-use token.
    * Token is single-use — deleted from Redis after successful validation.

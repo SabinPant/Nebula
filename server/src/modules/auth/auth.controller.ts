@@ -37,6 +37,8 @@ import { RATE_LIMITS } from '../../core/config/rate-limit.config';
 import { JwtService } from '@nestjs/jwt';
 import { JwtAuthGuard } from './guards/jwt-auth.guard';
 import { ChangePasswordDto } from './dto/change-password.dto';
+import { ResendVerificationDto } from './dto/resend-verification.dto';
+
 @Controller('auth')
 export class AuthController {
   constructor(
@@ -200,6 +202,18 @@ export class AuthController {
     return this.authService.resetPassword(dto.token, dto.password);
   }
 
+    /**
+   * Resends the email verification link.
+   * Public endpoint — user may not be verified yet.
+   * Rate limited to 3 requests per hour per email address.
+   * Enumeration-safe — always returns 200.
+   */
+  @Post('resend-verification')
+  @HttpCode(HttpStatus.OK)
+  @Throttle({ default: { limit: RATE_LIMITS.FORGOT_PASSWORD.limit, ttl: RATE_LIMITS.FORGOT_PASSWORD.ttl } })
+  async resendVerification(@Body() dto: ResendVerificationDto) {
+    return this.authService.resendVerification(dto.email);
+  }
 
     /**
    * Returns the standard HTTP-only cookie options for refresh tokens.
