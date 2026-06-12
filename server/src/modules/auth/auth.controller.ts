@@ -15,6 +15,7 @@
 import {
   Controller,
   Post,
+  Patch,
   Body,
   HttpCode,
   HttpStatus,
@@ -23,6 +24,7 @@ import {
   UnauthorizedException,
   UseGuards,
 } from '@nestjs/common';
+
 import { Throttle } from '@nestjs/throttler';
 import { Request, Response } from 'express';
 import { AuthService } from './auth.service';
@@ -34,7 +36,7 @@ import { VerifyEmailDto } from './dto/verify-email.dto';
 import { RATE_LIMITS } from '../../core/config/rate-limit.config';
 import { JwtService } from '@nestjs/jwt';
 import { JwtAuthGuard } from './guards/jwt-auth.guard';
-
+import { ChangePasswordDto } from './dto/change-password.dto';
 @Controller('auth')
 export class AuthController {
   constructor(
@@ -161,6 +163,22 @@ export class AuthController {
     res.clearCookie('refreshToken', { path: '/api/v1/auth' });
 
     return { message: 'Logged out successfully' };
+  }
+
+    /**
+   * Changes the authenticated user's password.
+   * Requires the current password for verification before applying the new one.
+   */
+  @Patch('change-password')
+  @HttpCode(HttpStatus.OK)
+  @UseGuards(JwtAuthGuard)
+  @Throttle({ default: { limit: RATE_LIMITS.LOGIN.limit, ttl: RATE_LIMITS.LOGIN.ttl } })
+  async changePassword(
+    @Req() req: Request,
+    @Body() dto: ChangePasswordDto,
+  ) {
+    const user = req.user as { id: string };
+    return this.authService.changePassword(user.id, dto.oldPassword, dto.newPassword);
   }
 
   @Post('verify-email')

@@ -292,6 +292,43 @@ export class AuthService {
     }
   }
 
+    /**
+   * Changes the authenticated user's password.
+   * Verifies the old password before applying the new one.
+   * Rejects if the new password is identical to the old one.
+   */
+  async changePassword(userId: string, oldPassword: string, newPassword: string) {
+    const user = await this.authRepository.findUserById(userId);
+
+    if (!user || !user.password) {
+      throw new UnauthorizedException({
+        code: 'INVALID_CREDENTIALS',
+        message: 'Invalid credentials',
+      });
+    }
+
+    const valid = await comparePassword(oldPassword, user.password);
+    if (!valid) {
+      throw new UnauthorizedException({
+        code: 'INVALID_CREDENTIALS',
+        message: 'Current password is incorrect',
+      });
+    }
+
+    const sameAsOld = await comparePassword(newPassword, user.password);
+    if (sameAsOld) {
+      throw new BadRequestException({
+        code: 'PASSWORD_SAME_AS_OLD',
+        message: 'New password must be different from your current password',
+      });
+    }
+
+    const hashed = await hashPassword(newPassword);
+    await this.authRepository.updatePassword(userId, hashed);
+
+    return { message: 'Password changed successfully' };
+  }
+
   /**
    * Verifies a user's email via token.
    * Token is single-use — deleted from Redis after successful validation.
