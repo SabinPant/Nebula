@@ -12,6 +12,7 @@ import {
   Controller,
   Post,
   Get,
+  Patch,
   Body,
   Param,
   HttpCode,
@@ -19,11 +20,13 @@ import {
   UseInterceptors,
   UploadedFile,
   BadRequestException,
+  UseGuards,
 } from '@nestjs/common';
+
 import { FileInterceptor } from '@nestjs/platform-express';
 import { BrokerService } from './broker.service';
 import { CreateBrokerApplicationDto } from './dto/create-broker-application.dto';
-import { Express } from 'express';
+import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 
 @Controller('broker-applications')
 export class BrokerController {
@@ -78,5 +81,45 @@ export class BrokerController {
   @Get('status/:email')
   async checkStatus(@Param('email') email: string) {
     return this.brokerService.checkStatus(email);
+  }
+
+    /**
+   * Approves a broker application and sends a setup invitation.
+   * Admin only — will be moved to AdminController in Sprint 13.
+   */
+  @UseGuards(JwtAuthGuard)
+  @Patch(':id/approve')
+  @HttpCode(HttpStatus.OK)
+  async approveApplication(
+    @Param('id') id: string,
+    @Body() body: { adminId: string; brokerNumber: string; adminNote?: string },
+  ) {
+    return this.brokerService.approveApplication(
+      id,
+      body.adminId,
+      body.brokerNumber,
+      body.adminNote,
+    );
+  }
+
+  /**
+   * Rejects a broker application with a mandatory reason.
+   * Admin only — will be moved to AdminController in Sprint 13.
+   */
+  @UseGuards(JwtAuthGuard)
+  @Patch(':id/reject')
+  @HttpCode(HttpStatus.OK)
+  async rejectApplication(
+    @Param('id') id: string,
+    @Body() body: { adminId: string; adminNote: string },
+  ) {
+    if (!body.adminNote || body.adminNote.trim().length === 0) {
+      throw new BadRequestException({
+        code: 'VALIDATION_ERROR',
+        message: 'A rejection reason is required',
+      });
+    }
+
+    return this.brokerService.rejectApplication(id, body.adminId, body.adminNote);
   }
 }
