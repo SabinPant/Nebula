@@ -22,6 +22,7 @@ import { JwtAuthGuard } from './guards/jwt-auth.guard';
 import { RolesGuard } from './guards/roles.guard';
 import { OnboardingGuard } from './guards/onboarding.guard';
 import { GoogleStrategy } from './strategies/google.strategy';
+import { CloudinaryService } from '../../shared/services/cloudinary.service';
 
 @Module({
   imports: [
@@ -48,7 +49,8 @@ import { GoogleStrategy } from './strategies/google.strategy';
   RolesGuard,
   OnboardingGuard,
   GoogleStrategy,
+  CloudinaryService,
 ],
-  exports: [AuthService, JwtAuthGuard, RolesGuard, OnboardingGuard],
+  exports: [AuthService, JwtAuthGuard, RolesGuard, OnboardingGuard, CloudinaryService],
 })
 export class AuthModule {}
