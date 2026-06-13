@@ -22,15 +22,25 @@ import { EmailService } from '../../shared/services/email.service';
 import { CreateBrokerApplicationDto } from './dto/create-broker-application.dto';
 import { randomUUID, createHash } from 'node:crypto';
 import { PrismaService } from '../../core/database/prisma.service';
+import { JwtService } from '@nestjs/jwt';
+import { AuthRepository } from '../auth/auth.repository';
+import { generateAccessToken, generateRefreshToken } from '../../shared/utils/tokens';
+import { TokenStorage } from '../../shared/utils/token-storage';
+import { hashPassword } from '../../shared/utils/crypto';
+import { UserType, TransactionType } from '@prisma/client';
+import { BrokerSetupDto } from './dto/broker-setup.dto';
 
 @Injectable()
 export class BrokerService {
-  constructor(
+ constructor(
   private readonly brokerRepository: BrokerRepository,
   private readonly cloudinaryService: CloudinaryService,
   private readonly emailService: EmailService,
   private readonly configService: ConfigService,
   private readonly prisma: PrismaService,
+  private readonly authRepository: AuthRepository,
+  private readonly jwtService: JwtService,
+  private readonly tokenStorage: TokenStorage,
 ) {}
 
   /**
@@ -210,4 +220,134 @@ export class BrokerService {
 
     return { message: 'Application rejected.' };
   }
+
+    /**
+   * Completes broker account setup via invitation token.
+   *
+   * Two paths:
+   * 1. New broker — creates user with BROKER type, wallet, and atomic deposit
+   * 2. Existing trader upgrade — upgrades userType to BROKER, sets brokerNumber
+   *
+   * Both paths set the password and return JWT tokens so the broker is
+   * immediately logged in.
+   */
+  async setupBroker(dto: BrokerSetupDto) {
+    const tokenHash = createHash('sha256').update(dto.token).digest('hex');
+
+    const invitation = await this.brokerRepository.findInvitationByHash(tokenHash);
+
+    if (!invitation) {
+      throw new BadRequestException({
+        code: 'INVALID_INVITATION_TOKEN',
+        message: 'This setup link is invalid',
+      });
+    }
+
+    if (invitation.usedAt) {
+      throw new BadRequestException({
+        code: 'INVITATION_ALREADY_USED',
+        message: 'This setup link has already been used',
+      });
+    }
+
+    if (new Date() > invitation.expiresAt) {
+      throw new BadRequestException({
+        code: 'INVALID_INVITATION_TOKEN',
+        message: 'This setup link has expired',
+      });
+    }
+
+    // Find the approved application for this email
+    const application = await this.brokerRepository.findByEmail(invitation.email);
+
+    if (!application || application.status !== 'APPROVED') {
+      throw new BadRequestException({
+        code: 'INVALID_INVITATION_TOKEN',
+        message: 'No approved application found for this invitation',
+      });
+    }
+
+    const hashedPassword = await hashPassword(dto.password);
+    let user: { id: string; email: string; displayName: string | null; userType: string; isOnboardingComplete: boolean };
+
+    if (application.existingUserId) {
+      // Path 1: Upgrade existing trader to BROKER (atomic)
+      await this.brokerRepository.upgradeToBroker(
+        application.existingUserId,
+        invitation.brokerNumber,
+        hashedPassword,
+      );
+
+      const updatedUser = await this.prisma.user.findUnique({
+        where: { id: application.existingUserId },
+      });
+
+      user = {
+        id: updatedUser!.id,
+        email: updatedUser!.email,
+        displayName: updatedUser!.displayName,
+        userType: updatedUser!.userType,
+        isOnboardingComplete: true,
+      };
+    } else {
+      // Path 2: Create new BROKER user with wallet
+      const newUser = await this.authRepository.createUserWithWallet(
+        {
+          email: application.email,
+          password: hashedPassword,
+          displayName: application.fullName,
+          userType: UserType.BROKER,
+          isEmailVerified: true,
+          emailVerifiedAt: new Date(),
+          isOnboardingComplete: true,
+          brokerNumber: invitation.brokerNumber,
+          phone: application.phone,
+        },
+        {
+          availableBalance: 0,
+          totalDeposited: 0,
+        },
+        {
+          type: TransactionType.INITIAL_DEPOSIT,
+          amount: 0,
+          description: 'Broker account — no virtual balance',
+        },
+      );
+
+      user = {
+        id: newUser.id,
+        email: newUser.email,
+        displayName: newUser.displayName,
+        userType: newUser.userType,
+        isOnboardingComplete: true,
+      };
+    }
+
+    // Mark invitation as used
+    await this.brokerRepository.markInvitationUsed(invitation.id);
+
+    // Link application to user
+    await this.brokerRepository.linkUser(application.id, user.id);
+
+    // Generate JWT tokens
+    const accessToken = generateAccessToken(this.jwtService, this.configService, {
+      sub: user.id,
+      email: user.email,
+      userType: user.userType,
+    });
+
+    const refreshToken = generateRefreshToken(this.jwtService, this.configService, {
+      sub: user.id,
+      deviceId: dto.deviceId,
+    });
+
+    await this.tokenStorage.storeRefreshToken(user.id, dto.deviceId, refreshToken);
+
+    return {
+      accessToken,
+      refreshToken,
+      user,
+    };
+  }
+
 }

@@ -20,6 +20,7 @@ import {
   UseInterceptors,
   UploadedFile,
   BadRequestException,
+  Res,
   UseGuards,
 } from '@nestjs/common';
 
@@ -27,6 +28,8 @@ import { FileInterceptor } from '@nestjs/platform-express';
 import { BrokerService } from './broker.service';
 import { CreateBrokerApplicationDto } from './dto/create-broker-application.dto';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
+import { Response } from 'express';
+import { BrokerSetupDto } from './dto/broker-setup.dto';
 
 @Controller('broker-applications')
 export class BrokerController {
@@ -83,6 +86,31 @@ export class BrokerController {
     return this.brokerService.checkStatus(email);
   }
 
+    /**
+   * Completes broker account setup via invitation token.
+   * Public — accessed via the link sent in the approval email.
+   * Returns JWT tokens so the broker is immediately logged in.
+   */
+  @Post('setup')
+  @HttpCode(HttpStatus.OK)
+  async setupBroker(
+    @Body() dto: BrokerSetupDto,
+    @Res({ passthrough: true }) res: Response,
+  ) {
+    const result = await this.brokerService.setupBroker(dto);
+
+    // Set refresh cookie — same env-aware config as auth controller
+    res.cookie('refreshToken', result.refreshToken, {
+      httpOnly: true,
+      secure: process.env.NODE_ENV === 'production',
+      sameSite: (process.env.NODE_ENV === 'production' ? 'none' : 'strict') as 'none' | 'strict',
+      maxAge: 7 * 24 * 60 * 60 * 1000,
+      path: '/api/v1/auth',
+    });
+
+    const { refreshToken: _, ...response } = result;
+    return response;
+  }
     /**
    * Approves a broker application and sends a setup invitation.
    * Admin only — will be moved to AdminController in Sprint 13.

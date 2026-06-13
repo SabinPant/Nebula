@@ -117,14 +117,15 @@ export class BrokerRepository {
   /**
    * Upgrades an existing user to BROKER type.
    */
-  async upgradeToBroker(userId: string, brokerNumber: string) {
-    return this.prisma.user.update({
-      where: { id: userId },
-      data: {
-        userType: 'BROKER',
-        brokerNumber,
-        isFirstLogin: false,
-      },
-    });
-  }
+  async upgradeToBroker(userId: string, brokerNumber: string, password: string) {
+  return this.prisma.user.update({
+    where: { id: userId },
+    data: {
+      userType: 'BROKER',
+      brokerNumber,
+      password,
+      isFirstLogin: false,
+    },
+  });
+}
 }
