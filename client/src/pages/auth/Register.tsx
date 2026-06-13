@@ -35,23 +35,32 @@ export function Register() {
       });
       setSuccess(true);
     } catch (err: any) {
-      const code = err.response?.data?.code;
-      switch (code) {
-        case "EMAIL_ALREADY_EXISTS":
-          setError("An account with this email already exists.");
-          break;
-        case "RATE_LIMIT_EXCEEDED":
+      const data = err.response?.data;
+      const code = data?.code;
+      const message = data?.message;
+
+      if (Array.isArray(message) && message.length > 0) {
+        const firstError = message[0] as string;
+        if (firstError.toLowerCase().includes("password")) {
           setError(
-            "Too many registration attempts. Please wait and try again.",
+            "Your password must be at least 8 characters and include an uppercase letter, a lowercase letter, a number, and a special character (@#$%!&*?).",
           );
-          break;
-        case "VALIDATION_ERROR":
-          setError(
-            "Password must be at least 8 characters with uppercase, lowercase, number, and special character.",
-          );
-          break;
-        default:
-          setError("Something went wrong. Please try again.");
+        } else {
+          setError(firstError);
+        }
+      } else {
+        switch (code) {
+          case "EMAIL_ALREADY_EXISTS":
+            setError("An account with this email already exists.");
+            break;
+          case "RATE_LIMIT_EXCEEDED":
+            setError(
+              "Too many registration attempts. Please wait and try again.",
+            );
+            break;
+          default:
+            setError(message || "Something went wrong. Please try again.");
+        }
       }
     } finally {
       setLoading(false);
@@ -143,7 +152,9 @@ export function Register() {
             variant="secondary"
             className="w-full"
             onClick={() => {
-              window.location.href = `${import.meta.env.VITE_API_URL || "http://localhost:3001/api/v1"}/auth/google`;
+              window.location.href = `${
+                import.meta.env.VITE_API_URL || "http://localhost:3001/api/v1"
+              }/auth/google`;
             }}
           >
             Sign up with Google

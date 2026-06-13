@@ -68,8 +68,13 @@ api.interceptors.response.use(
       _retry?: boolean;
     };
 
-    // Only handle 401s, and only if we haven't already retried this request
-    if (error.response?.status !== 401 || originalRequest._retry) {
+        if (
+      error.response?.status !== 401 ||
+      originalRequest._retry ||
+      originalRequest.url?.includes('/auth/login') ||
+      originalRequest.url?.includes('/auth/register') ||
+      originalRequest.url?.includes('/auth/refresh')
+    ) {
       return Promise.reject(error);
     }
 
