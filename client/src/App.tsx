@@ -1,16 +1,15 @@
 /**
  * Root Application Component
  *
- * Top-level React component.
- * Placeholder only — routing and layout come in Sprint 2 (Auth Frontend).
+ * Renders the React Router provider with all routes.
+ * No layout, no business logic — pure routing.
  */
 
+import { RouterProvider } from "react-router-dom";
+import { router } from "./router";
+
 function App() {
-  return (
-    <div className="min-h-screen bg-gray-950 text-white flex items-center justify-center">
-      <h1 className="text-2xl font-bold">Nebula</h1>
-    </div>
-  );
+  return <RouterProvider router={router} />;
 }
 
 export default App;
