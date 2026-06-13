@@ -24,6 +24,62 @@ enum TransactionType {
   MANUAL_ADJUST
 }
 
+enum OrderType {
+  BUY
+  SELL
+}
+
+enum OrderStyle {
+  MARKET
+  LIMIT
+}
+
+enum OrderStatus {
+  PENDING
+  PARTIALLY_FILLED
+  COMPLETED
+  CANCELLED
+  REJECTED
+}
+
+enum NotificationType {
+  ORDER_FILLED
+  ORDER_CANCELLED
+  PRICE_ALERT
+  CIRCUIT_BREAKER
+  TOP_UP_CREDITED
+  BROKER_APPLICATION_APPROVED
+  BROKER_APPLICATION_REJECTED
+  BROKER_SETUP_LINK_SENT
+  ACCOUNT_UPGRADED_TO_BROKER
+  ACCOUNT_FLAGGED
+  ACCOUNT_SUSPENDED
+  BROKER_REASSIGNED
+  SYSTEM
+}
+
+enum BrokerApplicationStatus {
+  PENDING
+  APPROVED
+  REJECTED
+}
+
+enum TopUpStatus {
+  COMPLETED
+  BLOCKED_BY_CAP
+}
+
+enum FlagStatus {
+  OPEN
+  RESOLVED
+  DISMISSED
+}
+
+enum ResourceTier {
+  FREE
+  PREMIUM
+}
+
 // ─── Models ─────────────────────────────────────────────────────────────────
 
 model User {
@@ -46,15 +102,91 @@ model User {
   createdAt            DateTime  @default(now())
   updatedAt            DateTime  @updatedAt
 
-  wallet             Wallet?
-  assignedBroker     User?            @relation("BrokerTraders", fields: [assignedBrokerId], references: [id])
-  assignedTraders    User[]           @relation("BrokerTraders")
+  wallet               Wallet?
+  portfolio            Portfolio?
+  holdings             Holding[]
+  orders               Order[]
+  watchlistItems       WatchlistItem[]
+  notifications        Notification[]
+  auditLogs            AuditLog[]
+  assignedTraders      User[]           @relation("BrokerTraders")
+  assignedBroker       User?            @relation("BrokerTraders", fields: [assignedBrokerId], references: [id])
+  processedTopUps      TopUpRequest[]   @relation("BrokerTopUps")
+  receivedTopUps       TopUpRequest[]   @relation("TraderTopUps")
+  raisedFlags          SuspiciousFlag[] @relation("BrokerFlags")
+  flaggedAs            SuspiciousFlag[] @relation("TraderFlags")
+  brokerApplication    BrokerApplication?
+  brokerInvitations    BrokerInvitation[]
 
   @@index([email])
   @@index([userType])
   @@index([assignedBrokerId])
   @@index([brokerNumber])
   @@index([deletedAt])
+}
+
+model BrokerApplication {
+  id               String                  @id @default(cuid())
+  userId           String?                 @unique
+  fullName         String
+  email            String
+  phone            String
+  dateOfBirth      DateTime
+  documentIdNumber String
+  documentUrl      String
+  documentPublicId String
+  reason           String
+  existingUserId   String?
+  upgradeExisting  Boolean                 @default(false)
+  status           BrokerApplicationStatus @default(PENDING)
+  adminNote        String?
+  reviewedAt       DateTime?
+  reviewedBy       String?    // Admin user ID — plain string, no FK to avoid circular relations
+  createdAt        DateTime                @default(now())
+
+  user User? @relation(fields: [userId], references: [id])
+
+  @@unique([phone])
+  @@index([status])
+  @@index([email])
+}
+
+model BrokerInvitation {
+  id          String   @id @default(cuid())
+  userId      String
+  email       String
+  brokerNumber String
+  tokenHash   String   @unique
+  expiresAt   DateTime
+  usedAt      DateTime?
+  createdAt   DateTime @default(now())
+
+  createdBy User @relation(fields: [userId], references: [id])
+
+  @@index([email])
+  @@index([expiresAt])
+}
+
+model TopUpRequest {
+  id                String      @id @default(cuid())
+  traderId          String
+  brokerId          String
+  amountPaise       Int
+  paymentMethod     String
+  transactionRef    String
+  receiptUrl        String
+  receiptPublicId   String
+  note              String?
+  status            TopUpStatus
+  weeklyTotalBefore Int
+  createdAt         DateTime    @default(now())
+
+  trader User @relation("TraderTopUps", fields: [traderId], references: [id])
+  broker User @relation("BrokerTopUps", fields: [brokerId], references: [id])
+
+  @@unique([transactionRef, brokerId])
+  @@index([traderId, createdAt])
+  @@index([brokerId, createdAt])
 }
 
 model Wallet {
@@ -101,7 +233,193 @@ model Stock {
   createdAt     DateTime @default(now())
   updatedAt     DateTime @updatedAt
 
+  orders         Order[]
+  holdings       Holding[]
+  watchlistItems WatchlistItem[]
+  priceHistory   PriceHistory[]
+  trades         Trade[]
+
   @@index([symbol])
   @@index([sector])
   @@index([isHalted])
+}
+
+model Order {
+  id              String      @id @default(cuid())
+  userId          String
+  stockId         String
+  type            OrderType
+  orderStyle      OrderStyle
+  price           Int?
+  quantity        Int
+  filledQuantity  Int         @default(0)
+  status          OrderStatus @default(PENDING)
+  rejectionReason String?
+  idempotencyKey  String?     @unique
+  createdAt       DateTime    @default(now())
+  updatedAt       DateTime    @updatedAt
+
+  user       User    @relation(fields: [userId], references: [id])
+  stock      Stock   @relation(fields: [stockId], references: [id])
+  buyTrades  Trade[] @relation("BuyOrder")
+  sellTrades Trade[] @relation("SellOrder")
+
+  @@index([userId, createdAt])
+  @@index([stockId, status])
+  @@index([status, createdAt])
+}
+
+model Trade {
+  id          String   @id @default(cuid())
+  buyOrderId  String
+  sellOrderId String
+  stockId     String
+  quantity    Int
+  price       Int
+  createdAt   DateTime @default(now())
+
+  buyOrder  Order @relation("BuyOrder",  fields: [buyOrderId],  references: [id])
+  sellOrder Order @relation("SellOrder", fields: [sellOrderId], references: [id])
+  stock     Stock @relation(fields: [stockId], references: [id])
+
+  @@index([stockId, createdAt])
+  @@index([buyOrderId])
+  @@index([sellOrderId])
+}
+
+model Portfolio {
+  id              String   @id @default(cuid())
+  userId          String   @unique
+  totalValue      Int      @default(0)
+  totalInvested   Int      @default(0)
+  totalProfitLoss Int      @default(0)
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  user     User      @relation(fields: [userId], references: [id])
+  holdings Holding[]
+
+  @@index([userId])
+}
+
+model Holding {
+  id              String   @id @default(cuid())
+  userId          String
+  stockId         String
+  portfolioId     String
+  quantity        Int
+  averageBuyPrice Int
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  stock     Stock     @relation(fields: [stockId], references: [id])
+  portfolio Portfolio @relation(fields: [portfolioId], references: [id])
+  user      User      @relation(fields: [userId], references: [id])
+
+  @@unique([userId, stockId])
+  @@index([userId])
+  @@index([portfolioId])
+}
+
+model PriceHistory {
+  id        String   @id @default(cuid())
+  stockId   String
+  open      Int
+  high      Int
+  low       Int
+  close     Int
+  volume    BigInt   @default(0)
+  interval  String
+  timestamp DateTime
+
+  stock Stock @relation(fields: [stockId], references: [id])
+
+  @@index([stockId, timestamp])
+  @@index([stockId, interval, timestamp])
+}
+
+model WatchlistItem {
+  id               String   @id @default(cuid())
+  userId           String
+  stockId          String
+  priceAlert       Int?
+  priceAlertActive Boolean  @default(false)
+  createdAt        DateTime @default(now())
+
+  user  User  @relation(fields: [userId], references: [id])
+  stock Stock @relation(fields: [stockId], references: [id])
+
+  @@unique([userId, stockId])
+  @@index([userId])
+  @@index([stockId, priceAlertActive])
+}
+
+model SuspiciousFlag {
+  id         String     @id @default(cuid())
+  traderId   String
+  brokerId   String
+  reason     String
+  note       String?
+  status     FlagStatus @default(OPEN)
+  resolvedBy String?
+  resolvedAt DateTime?
+  resolution String?
+  createdAt  DateTime   @default(now())
+
+  trader User @relation("TraderFlags", fields: [traderId], references: [id])
+  broker User @relation("BrokerFlags", fields: [brokerId], references: [id])
+
+  @@index([traderId])
+  @@index([brokerId])
+  @@index([status])
+}
+
+model Notification {
+  id        String           @id @default(cuid())
+  userId    String
+  type      NotificationType
+  title     String
+  message   String
+  data      Json?
+  isRead    Boolean          @default(false)
+  createdAt DateTime         @default(now())
+
+  user User @relation(fields: [userId], references: [id])
+
+  @@index([userId, isRead])
+  @@index([userId, createdAt])
+}
+
+model AuditLog {
+  id        String   @id @default(cuid())
+  userId    String?
+  action    String
+  ipAddress String?
+  userAgent String?
+  metadata  Json?
+  createdAt DateTime @default(now())
+
+  user User? @relation(fields: [userId], references: [id])
+
+  @@index([userId, createdAt])
+  @@index([action, createdAt])
+}
+
+model LearningResource {
+  id          String       @id @default(cuid())
+  title       String
+  slug        String       @unique
+  category    String
+  tier        ResourceTier @default(FREE)
+  content     String
+  summary     String
+  coverImage  String?
+  isPublished Boolean      @default(false)
+  order       Int          @default(0)
+  createdAt   DateTime     @default(now())
+  updatedAt   DateTime     @updatedAt
+
+  @@index([category, tier])
+  @@index([isPublished, tier])
+  @@index([slug])
 }
