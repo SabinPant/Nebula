@@ -20,6 +20,7 @@ import { ForgotPassword } from "../pages/auth/ForgotPassword";
 import { ResetPassword } from "../pages/auth/ResetPassword";
 import { Onboarding } from "../pages/auth/Onboarding";
 import { Dashboard } from "../pages/trader/Dashboard";
+import { BrokerApply } from "../pages/broker-apply/Apply";
 
 // ─── Guard Components ────────────────────────────────────────────────────
 
@@ -72,6 +73,7 @@ export const router = createBrowserRouter([
     children: [
       { path: "/login", element: <Login /> },
       { path: "/register", element: <Register /> },
+      { path: "/broker-apply", element: <BrokerApply /> },
       { path: "/verify-email", element: <VerifyEmail /> },
       { path: "/forgot-password", element: <ForgotPassword /> },
       { path: "/reset-password", element: <ResetPassword /> },
