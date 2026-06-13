@@ -17,6 +17,7 @@ import { AuthModule } from './modules/auth/auth.module';
 import { RedisClient } from './core/database/redis.client';
 import { ThrottlerRedisStorage } from './core/config/throttler-redis.storage';
 import { RATE_LIMITS } from './core/config/rate-limit.config';
+import { BrokerModule } from './modules/broker/broker.module';
 
 @Global()
 @Module({
@@ -41,6 +42,8 @@ import { RATE_LIMITS } from './core/config/rate-limit.config';
       }),
     }),
     AuthModule,
+    BrokerModule,
+
   ],
   controllers: [],
   providers: [
