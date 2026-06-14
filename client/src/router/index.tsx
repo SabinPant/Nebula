@@ -21,6 +21,8 @@ import { ResetPassword } from "../pages/auth/ResetPassword";
 import { Onboarding } from "../pages/auth/Onboarding";
 import { Dashboard } from "../pages/trader/Dashboard";
 import { BrokerApply } from "../pages/broker-apply/Apply";
+import { Wallet } from "../pages/trader/Wallet";
+import { TopupInfo } from "../pages/trader/TopupInfo";
 
 // ─── Guard Components ────────────────────────────────────────────────────
 
@@ -89,6 +91,10 @@ export const router = createBrowserRouter([
   // Fully onboarded only
   {
     element: <OnboardingGuard />,
-    children: [{ path: "/dashboard", element: <Dashboard /> }],
+    children: [
+      { path: "/dashboard", element: <Dashboard /> },
+      { path: "/wallet", element: <Wallet /> },
+      { path: "/wallet/topup-info", element: <TopupInfo /> },
+    ],
   },
 ]);
