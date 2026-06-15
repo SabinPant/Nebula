@@ -11,6 +11,7 @@ import { Card } from "../../components/ui/Card";
 import { Button } from "../../components/ui/Button";
 import { Alert } from "../../components/ui/Alert";
 import api from "../../services/api";
+import { formatPaise } from "../../lib/utils";
 
 interface Transaction {
   id: string;
@@ -35,14 +36,6 @@ const TRANSACTION_LABELS: Record<string, string> = {
   COLLATERAL_TOP_UP: "Collateral Top-Up",
   MANUAL_ADJUST: "Manual Adjustment",
 };
-
-function formatPaise(paise: number): string {
-  const rupees = paise / 100;
-  return `Rs. ${rupees.toLocaleString("en-IN", {
-    minimumFractionDigits: 2,
-    maximumFractionDigits: 2,
-  })}`;
-}
 
 function formatDate(dateString: string): string {
   return new Date(dateString).toLocaleDateString("en-US", {

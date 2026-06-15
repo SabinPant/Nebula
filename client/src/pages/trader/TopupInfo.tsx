@@ -12,6 +12,7 @@ import { Link } from "react-router-dom";
 import { Card } from "../../components/ui/Card";
 import { Alert } from "../../components/ui/Alert";
 import api from "../../services/api";
+import { formatPaise } from "../../lib/utils";
 
 interface BrokerInfo {
   displayName: string;
@@ -26,11 +27,6 @@ interface TopupData {
   weeklyCapPaise: number;
   weeklyUsedPaise: number;
   weeklyRemainingPaise: number;
-}
-
-function formatPaise(paise: number): string {
-  const rupees = paise / 100;
-  return `Rs. ${rupees.toLocaleString("en-IN", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
 }
 
 export function TopupInfo() {
