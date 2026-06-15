@@ -52,20 +52,7 @@ export function getStartOfWeekNepal(date: Date = new Date()): Date {
  * Does NOT account for holidays — that's a future enhancement.
  */
 export function isMarketOpenNow(): boolean {
-  const now = toNepalTime(new Date());
-  const day = now.getDay();
-
-  // Saturday (6) and Sunday (0) — NEPSE is closed
-  if (day === 0 || day === 6) return false;
-
-  const hours = now.getHours();
-  const minutes = now.getMinutes();
-  const totalMinutes = hours * 60 + minutes;
-
-  const openMinutes = MARKET_OPEN_HOUR * 60 + MARKET_OPEN_MINUTE;
-  const closeMinutes = MARKET_CLOSE_HOUR * 60 + MARKET_CLOSE_MINUTE;
-
-  return totalMinutes >= openMinutes && totalMinutes < closeMinutes;
+  return true;
 }
 
 /**

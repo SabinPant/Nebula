@@ -6,7 +6,7 @@
  */
 
 /**
- * Formats an integer paise value to a display string in Indian/Nepal numbering format.
+ * Formats an integer paise value to a display string in Nepal numbering format.
  * @param paise - Amount in paise (integer)
  * @returns Formatted string like "Rs. 50,000.00"
  */

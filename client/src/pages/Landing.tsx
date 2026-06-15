@@ -2,140 +2,160 @@
  * Landing Page
  *
  * Public home page — first impression for all visitors.
- * Hero section with CTA, scrolling ticker tape, features grid,
- * how-it-works steps, and footer.
- *
- * Ticker data is hardcoded for Sprint 2. Will fetch live data
- * from the API when the market module is built in Sprint 4.
+ * Structure: Navbar → Ticker → Hero → Stats → Features
+ * → How It Works → User Roles → CTA Banner → Footer.
  */
 
 import { Link } from "react-router-dom";
 import { Button } from "../components/ui/Button";
 
-// Placeholder ticker data — matches seeded NEPSE stocks
+// ── Ticker data ──────────────────────────────────────────────────────────
 const tickerStocks = [
-  { symbol: "NABIL", price: "Rs. 485.00", change: "+2.50", up: true },
-  { symbol: "NICA", price: "Rs. 620.00", change: "-1.20", up: false },
-  { symbol: "GBIME", price: "Rs. 312.00", change: "+5.80", up: true },
-  { symbol: "NTC", price: "Rs. 925.00", change: "+3.10", up: true },
-  { symbol: "SHIVM", price: "Rs. 540.00", change: "-0.75", up: false },
-  { symbol: "HDL", price: "Rs. 3,150.00", change: "+12.00", up: true },
-  { symbol: "CHCL", price: "Rs. 785.00", change: "-2.30", up: false },
-  { symbol: "UPPER", price: "Rs. 385.00", change: "+1.90", up: true },
-  { symbol: "NLIC", price: "Rs. 1,250.00", change: "+8.40", up: true },
-  { symbol: "SCB", price: "Rs. 720.00", change: "-0.50", up: false },
+  { symbol: "NABIL", price: "Rs. 485.00", change: "+2.50%", up: true },
+  { symbol: "NICA", price: "Rs. 620.00", change: "-1.20%", up: false },
+  { symbol: "GBIME", price: "Rs. 312.00", change: "+5.80%", up: true },
+  { symbol: "NTC", price: "Rs. 925.00", change: "+3.10%", up: true },
+  { symbol: "SHIVM", price: "Rs. 540.00", change: "-0.75%", up: false },
+  { symbol: "HDL", price: "Rs. 3,150.00", change: "+12.00%", up: true },
+  { symbol: "CHCL", price: "Rs. 785.00", change: "-2.30%", up: false },
+  { symbol: "UPPER", price: "Rs. 385.00", change: "+1.90%", up: true },
+  { symbol: "NLIC", price: "Rs. 1,250.00", change: "+8.40%", up: true },
+  { symbol: "SCB", price: "Rs. 720.00", change: "-0.50%", up: false },
 ];
 
 const features = [
   {
     title: "Virtual Balance",
     description:
-      "Start with Rs. 50,000 in virtual funds. Learn to trade without risking a single rupee of real money.",
-    icon: "💰",
+      "Start with Rs. 50,000 in virtual funds. Place orders, build a portfolio, and learn money management without any real financial risk.",
   },
   {
-    title: "Real NEPSE Simulation",
+    title: "Market Simulation Engine",
     description:
-      "Prices move realistically using a custom simulation engine. Practice in a market that feels real.",
-    icon: "📈",
+      "Prices move using a custom Geometric Brownian Motion engine. Candlestick charts, order books, circuit breakers — the full picture, simulated.",
   },
   {
     title: "AI Coaching",
     description:
-      "Get personalised guidance from our AI assistant. Ask questions, analyse your portfolio, and learn faster.",
-    icon: "🤖",
+      "Ask our Gemini-powered assistant anything — analyse your portfolio, understand a trade, or get a market explainer. Personalised guidance, on demand.",
   },
   {
     title: "Broker System",
     description:
-      "Real brokers review your progress and can add collateral. A bridge between practice and real trading.",
-    icon: "🤝",
+      "Licensed brokers review your progress and can add collateral to your account. A structured bridge between virtual practice and real markets.",
   },
 ];
 
 const steps = [
   {
     number: "01",
-    title: "Create Your Account",
+    title: "Create your account",
     description:
-      "Sign up with your email or Google account. No phone number, no documents — just your name and a password.",
+      "Sign up with your email or Google account. Just your name and a password — verified instantly.",
   },
   {
     number: "02",
-    title: "Get Rs. 50,000",
+    title: "Receive Rs. 50,000",
     description:
-      "Your virtual trading account is funded instantly. Use this to buy and sell NEPSE stocks risk-free.",
+      "Your virtual wallet is funded the moment registration is complete. No delays, no conditions.",
   },
   {
     number: "03",
-    title: "Start Trading",
+    title: "Start trading",
     description:
-      "Pick stocks from the NEPSE list, place buy and sell orders, watch your portfolio grow — all with virtual money.",
+      "Browse stocks, place buy and sell orders, track your portfolio, and learn as you go with AI guidance.",
+  },
+];
+
+const roles = [
+  {
+    title: "Trader",
+    description:
+      "The core user. Registers, receives virtual funds, trades stocks, interacts with AI coaching, and builds their portfolio over time.",
+  },
+  {
+    title: "Broker",
+    description:
+      "A licensed user who monitors assigned traders, reviews their progress, and can add collateral to accounts — bridging virtual learning with real markets.",
+  },
+  {
+    title: "Admin",
+    description:
+      "Manages the entire platform — approves broker applications, handles user management, controls the simulation engine, and reviews audit logs.",
   },
 ];
 
 export function Landing() {
+  const doubled = [...tickerStocks, ...tickerStocks];
+
   return (
     <div className="min-h-screen bg-white">
-      {/* ─── Ticker Tape ──────────────────────────────────────────────── */}
-      <div className="bg-primary-900 text-white overflow-hidden">
-        <div className="flex animate-scroll space-x-8 py-2 px-4 text-sm">
-          {[...tickerStocks, ...tickerStocks].map((stock, i) => (
+      {/* ── Navbar ──────────────────────────────────────────────────── */}
+      <nav className="border-b border-gray-200 bg-white">
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 h-16 flex items-center justify-between">
+          <Link
+            to="/"
+            className="text-2xl font-bold text-primary-900 tracking-tight"
+          >
+            Nebula
+          </Link>
+          <div className="flex items-center space-x-3">
+            <Link to="/login">
+              <Button variant="secondary" size="sm">
+                Log in
+              </Button>
+            </Link>
+            <Link to="/register">
+              <Button size="sm">Sign up free</Button>
+            </Link>
+          </div>
+        </div>
+      </nav>
+
+      {/* ── Ticker Tape ──────────────────────────────────────────────── */}
+      <div className="bg-primary-900 overflow-hidden">
+        <div className="flex animate-scroll whitespace-nowrap py-2">
+          {doubled.map((stock, i) => (
             <div
               key={i}
-              className="flex items-center space-x-2 whitespace-nowrap"
+              className="inline-flex items-center gap-3 px-6 border-r border-primary-800 text-sm"
             >
-              <span className="font-semibold">{stock.symbol}</span>
-              <span className="text-gray-300">{stock.price}</span>
+              <span className="font-semibold text-gray-200">
+                {stock.symbol}
+              </span>
+              <span className="text-gray-400">{stock.price}</span>
               <span className={stock.up ? "text-green-400" : "text-red-400"}>
-                {stock.change}%
+                {stock.change}
               </span>
             </div>
           ))}
         </div>
       </div>
 
-      {/* ─── Navbar ───────────────────────────────────────────────────── */}
-      <nav className="border-b border-gray-200 bg-white">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-          <div className="flex items-center justify-between h-16">
-            <Link
-              to="/"
-              className="text-2xl font-bold text-primary-900 tracking-tight"
-            >
-              Nebula
-            </Link>
-            <div className="flex items-center space-x-3">
-              <Link to="/login">
-                <Button variant="secondary" size="sm">
-                  Log in
-                </Button>
-              </Link>
-              <Link to="/register">
-                <Button size="sm">Sign up</Button>
-              </Link>
-            </div>
-          </div>
-        </div>
-      </nav>
-
-      {/* ─── Hero ─────────────────────────────────────────────────────── */}
+      {/* ── Hero ─────────────────────────────────────────────────────── */}
       <section className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-20 lg:py-28">
-        <div className="grid lg:grid-cols-2 gap-12 items-center">
+        <div className="grid lg:grid-cols-2 gap-16 items-center">
           <div>
-            <h1 className="text-4xl sm:text-5xl lg:text-6xl font-bold text-gray-900 leading-tight">
-              Learn to Trade on <span className="text-primary-700">NEPSE</span>{" "}
-              Risk-Free
+            <div className="inline-flex items-center gap-2 bg-primary-50 border border-primary-200 rounded-full px-4 py-1.5 text-xs font-semibold text-primary-700 mb-6">
+              <span className="w-1.5 h-1.5 rounded-full bg-primary-500" />
+              Virtual trading platform for Nepal
+            </div>
+
+            <h1 className="text-4xl sm:text-5xl lg:text-6xl font-bold text-gray-900 leading-tight tracking-tight">
+              Learn to trade.
+              <br />
+              <span className="text-primary-700">Zero risk.</span>
             </h1>
-            <p className="mt-6 text-lg text-gray-600 leading-relaxed max-w-xl">
-              Nebula is Nepal's first virtual stock trading platform built for
-              education. Practice with virtual money, learn from AI coaching,
-              and build real trading confidence — all without risking a single
-              rupee.
+
+            <p className="mt-6 text-lg text-gray-500 leading-relaxed max-w-xl">
+              Nebula simulates real market dynamics so you can practice trading
+              with confidence. Start with Rs. 50,000 in virtual funds, get AI
+              coaching, and build real skills without risking a single rupee.
             </p>
-            <div className="mt-8 flex flex-col sm:flex-row space-y-3 sm:space-y-0 sm:space-x-4">
+
+            <div className="mt-8 flex flex-col sm:flex-row gap-3">
               <Link to="/register">
-                <Button size="lg">Start Trading Free</Button>
+                <Button size="lg">Start trading free</Button>
               </Link>
               <Link to="/login">
                 <Button variant="secondary" size="lg">
@@ -143,136 +163,306 @@ export function Landing() {
                 </Button>
               </Link>
             </div>
+
             <p className="mt-4 text-sm text-gray-400">
-              No credit card required • Virtual Rs. 50,000 on signup
+              No credit card required &middot; Rs. 50,000 virtual balance on
+              signup
             </p>
           </div>
 
-          {/* Chart placeholder card */}
-          <div className="hidden lg:block">
-            <div className="bg-surface-50 border border-gray-200 rounded-lg p-6">
-              <div className="flex items-center justify-between mb-4">
-                <div>
-                  <p className="text-sm text-gray-400">NEPSE Index</p>
-                  <p className="text-2xl font-bold text-gray-900">2,845.32</p>
+          {/* Nebula Index card */}
+          <div className="hidden lg:block border border-gray-200 rounded-2xl overflow-hidden bg-surface-50">
+            <div className="bg-primary-900 px-6 py-4 flex items-center justify-between">
+              <span className="text-sm font-medium text-gray-300">
+                Nebula Index
+              </span>
+              <span className="text-xs font-semibold text-green-400 bg-green-900/30 border border-green-700/30 rounded-md px-2.5 py-1">
+                Live simulation
+              </span>
+            </div>
+            <div className="px-6 pt-5">
+              <p className="text-xs text-gray-400 mb-1">Current value</p>
+              <p className="text-4xl font-bold text-gray-900 tracking-tight">
+                2,845.32
+              </p>
+              <p className="text-sm font-semibold text-green-600 mt-1.5">
+                +12.45 (0.44%)
+              </p>
+            </div>
+            <div className="px-6 py-4">
+              <div className="h-24 bg-gradient-to-t from-green-50 to-transparent rounded flex items-end">
+                <svg viewBox="0 0 380 60" className="w-full h-full">
+                  <path
+                    d="M0,45 L38,42 L76,44 L114,35 L152,38 L190,28 L228,30 L266,20 L304,18 L342,12 L380,8"
+                    fill="none"
+                    stroke="#16a34a"
+                    strokeWidth="2"
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                  />
+                </svg>
+              </div>
+            </div>
+            <div className="border-t border-gray-200 grid grid-cols-4">
+              {[
+                { sym: "NABIL", chg: "+2.50%", up: true },
+                { sym: "NTC", chg: "+3.10%", up: true },
+                { sym: "HDL", chg: "+12.00%", up: true },
+                { sym: "NICA", chg: "-1.20%", up: false },
+              ].map((s, i) => (
+                <div
+                  key={i}
+                  className="px-3 py-3 border-r border-gray-200 last:border-r-0 text-center"
+                >
+                  <p className="text-xs font-semibold text-gray-900">{s.sym}</p>
+                  <p
+                    className={`text-xs mt-0.5 ${s.up ? "text-green-600" : "text-red-500"}`}
+                  >
+                    {s.chg}
+                  </p>
                 </div>
-                <span className="text-green-600 bg-green-50 px-2 py-1 rounded text-sm font-medium">
-                  +12.45 (0.44%)
-                </span>
-              </div>
-              <div className="h-48 bg-gray-100 rounded flex items-center justify-center">
-                <p className="text-gray-400 text-sm">
-                  Charts coming in Sprint 4
-                </p>
-              </div>
-              <div className="flex space-x-4 mt-4">
-                {["NABIL", "NTC", "HDL", "CHCL"].map((symbol) => (
-                  <div key={symbol} className="flex-1 text-center">
-                    <p className="text-xs font-semibold text-gray-900">
-                      {symbol}
-                    </p>
-                    <p className="text-xs text-green-600">▲</p>
-                  </div>
-                ))}
-              </div>
+              ))}
             </div>
           </div>
         </div>
       </section>
 
-      {/* ─── Features ─────────────────────────────────────────────────── */}
-      <section className="bg-surface-50 py-20">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-          <div className="text-center mb-12">
-            <h2 className="text-3xl font-bold text-gray-900">
-              Everything You Need to Learn Trading
-            </h2>
-            <p className="mt-4 text-lg text-gray-500 max-w-2xl mx-auto">
-              Nebula gives you the tools, data, and guidance to go from beginner
-              to confident trader — all in a risk-free environment.
-            </p>
-          </div>
-          <div className="grid sm:grid-cols-2 lg:grid-cols-4 gap-6">
-            {features.map((feature) => (
-              <div
-                key={feature.title}
-                className="bg-white border border-gray-200 rounded-lg p-6 hover:shadow-md transition-shadow"
-              >
-                <div className="text-3xl mb-3">{feature.icon}</div>
-                <h3 className="text-lg font-semibold text-gray-900 mb-2">
-                  {feature.title}
-                </h3>
-                <p className="text-sm text-gray-500 leading-relaxed">
-                  {feature.description}
-                </p>
-              </div>
-            ))}
-          </div>
+      {/* ── Stats Bar ───────────────────────────────────────────────── */}
+      <div className="border-y border-gray-200 bg-surface-50">
+        <div className="max-w-7xl mx-auto grid grid-cols-2 md:grid-cols-4 divide-x divide-gray-200">
+          {[
+            { value: "Rs. 50K", label: "Virtual starting balance" },
+            { value: "10+", label: "Stocks available to trade" },
+            { value: "AI", label: "Coaching via Gemini" },
+            { value: "3", label: "Roles — Trader, Broker, Admin" },
+          ].map((stat, i) => (
+            <div key={i} className="py-6 text-center">
+              <p className="text-2xl font-bold text-gray-900">{stat.value}</p>
+              <p className="text-sm text-gray-500 mt-1">{stat.label}</p>
+            </div>
+          ))}
+        </div>
+      </div>
+
+      {/* ── Features ─────────────────────────────────────────────────── */}
+      <section className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-20">
+        <p className="text-xs font-semibold tracking-wider text-primary-600 uppercase mb-3">
+          Platform Features
+        </p>
+        <div className="grid lg:grid-cols-2 gap-12 items-start mb-12">
+          <h2 className="text-3xl font-bold text-gray-900 tracking-tight leading-tight">
+            Built for learning,
+            <br />
+            designed to feel real
+          </h2>
+          <p className="text-base text-gray-500 leading-relaxed">
+            Nebula isn't a basic demo. It's a full simulation platform with a
+            custom market engine, real-time price updates, and a broker system
+            that mirrors how financial markets operate.
+          </p>
+        </div>
+
+        <div className="grid md:grid-cols-2 border border-gray-200 rounded-xl overflow-hidden divide-x divide-y divide-gray-200">
+          {features.map((f) => (
+            <div key={f.title} className="bg-white p-8">
+              <h3 className="text-lg font-semibold text-gray-900 mb-2">
+                {f.title}
+              </h3>
+              <p className="text-sm text-gray-500 leading-relaxed">
+                {f.description}
+              </p>
+            </div>
+          ))}
         </div>
       </section>
 
-      {/* ─── How It Works ─────────────────────────────────────────────── */}
-      <section className="py-20">
+      {/* ── How It Works ──────────────────────────────────────────────── */}
+      <section className="bg-primary-900 py-20">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-          <div className="text-center mb-12">
-            <h2 className="text-3xl font-bold text-gray-900">
-              Start in Under 2 Minutes
-            </h2>
-            <p className="mt-4 text-lg text-gray-500 max-w-2xl mx-auto">
-              Three simple steps from signup to your first trade. No paperwork,
-              no real money, no risk.
-            </p>
-          </div>
-          <div className="grid md:grid-cols-3 gap-8 max-w-4xl mx-auto">
+          <p className="text-xs font-semibold tracking-wider text-primary-300 uppercase mb-3">
+            Getting Started
+          </p>
+          <h2 className="text-3xl font-bold text-white tracking-tight mb-3">
+            Up and trading in under 2 minutes
+          </h2>
+          <p className="text-base text-gray-400 max-w-xl mb-14">
+            Three steps from signup to your first order. No paperwork, no phone
+            verification, no real money.
+          </p>
+
+          <div className="grid md:grid-cols-3 gap-6">
             {steps.map((step) => (
-              <div key={step.number} className="text-center">
-                <div className="w-12 h-12 bg-primary-100 text-primary-700 rounded-full flex items-center justify-center text-lg font-bold mx-auto mb-4">
+              <div
+                key={step.number}
+                className="bg-primary-800/50 border border-primary-700/50 rounded-2xl p-7"
+              >
+                <p className="text-sm font-bold text-primary-300 tracking-wider mb-4">
                   {step.number}
-                </div>
-                <h3 className="text-lg font-semibold text-gray-900 mb-2">
+                </p>
+                <h3 className="text-lg font-semibold text-white mb-2">
                   {step.title}
                 </h3>
-                <p className="text-sm text-gray-500 leading-relaxed">
+                <p className="text-sm text-gray-400 leading-relaxed">
                   {step.description}
                 </p>
               </div>
             ))}
           </div>
-          <div className="text-center mt-10">
-            <Link to="/register">
-              <Button size="lg">Create Your Free Account</Button>
-            </Link>
-          </div>
         </div>
       </section>
 
-      {/* ─── Footer ───────────────────────────────────────────────────── */}
-      <footer className="bg-primary-900 text-gray-300 py-12">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-          <div className="flex flex-col md:flex-row items-center justify-between">
-            <div className="mb-4 md:mb-0">
-              <span className="text-xl font-bold text-white">Nebula</span>
-              <p className="text-sm mt-1 text-gray-400">
-                Virtual NEPSE Trading & Learning Platform
+      {/* ── User Roles ────────────────────────────────────────────────── */}
+      <section className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-20">
+        <p className="text-xs font-semibold tracking-wider text-primary-600 uppercase mb-3">
+          Who Uses Nebula
+        </p>
+        <h2 className="text-3xl font-bold text-gray-900 tracking-tight mb-3">
+          Three roles, one platform
+        </h2>
+        <p className="text-base text-gray-500 max-w-xl mb-12">
+          Nebula supports a complete trading ecosystem — from new learners to
+          licensed brokers and platform administrators.
+        </p>
+
+        <div className="grid md:grid-cols-3 gap-6">
+          {roles.map((role) => (
+            <div
+              key={role.title}
+              className="bg-surface-50 border border-gray-200 rounded-xl p-7"
+            >
+              <h3 className="text-lg font-semibold text-gray-900 mb-2">
+                {role.title}
+              </h3>
+              <p className="text-sm text-gray-500 leading-relaxed">
+                {role.description}
               </p>
             </div>
-            <div className="flex space-x-6 text-sm">
-              <Link to="/login" className="hover:text-white transition-colors">
+          ))}
+        </div>
+      </section>
+
+      {/* ── CTA Banner ────────────────────────────────────────────────── */}
+      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 pb-20">
+        <div className="bg-primary-900 rounded-2xl px-8 lg:px-16 py-14 text-center">
+          <p className="text-xs font-semibold tracking-wider text-primary-300 uppercase mb-4">
+            Start Today
+          </p>
+          <h2 className="text-3xl font-bold text-white tracking-tight leading-tight mb-4 max-w-xl mx-auto">
+            The best way to learn trading is to actually trade
+          </h2>
+          <p className="text-base text-gray-400 leading-relaxed mb-8 max-w-lg mx-auto">
+            Nebula gives you real market mechanics, AI guidance, and zero
+            financial risk. Begin with Rs. 50,000 and start building skills
+            today.
+          </p>
+          <div className="flex gap-3 justify-center">
+            <Link to="/register">
+              <Button size="lg">Create free account</Button>
+            </Link>
+            <Link to="/login">
+              <Button variant="secondary" size="lg">
                 Log in
-              </Link>
-              <Link
-                to="/register"
-                className="hover:text-white transition-colors"
-              >
-                Sign up
-              </Link>
+              </Button>
+            </Link>
+          </div>
+        </div>
+      </div>
+
+      {/* ── Footer ────────────────────────────────────────────────────── */}
+      <footer className="bg-primary-950 pt-14 pb-7">
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+          <div className="grid grid-cols-2 md:grid-cols-4 gap-10 mb-12">
+            <div className="col-span-2 md:col-span-1">
+              <span className="text-xl font-bold text-white">Nebula</span>
+              <p className="text-sm text-gray-400 mt-2 leading-relaxed">
+                Virtual trading and learning platform. Built for education.
+              </p>
+            </div>
+            <div>
+              <p className="text-xs font-semibold text-gray-500 tracking-wider uppercase mb-4">
+                Platform
+              </p>
+              <ul className="space-y-2.5">
+                {[
+                  "How it works",
+                  "Features",
+                  "Market simulation",
+                  "AI coaching",
+                ].map((l) => (
+                  <li key={l}>
+                    <span className="text-sm text-gray-400 hover:text-gray-200 transition-colors cursor-pointer">
+                      {l}
+                    </span>
+                  </li>
+                ))}
+              </ul>
+            </div>
+            <div>
+              <p className="text-xs font-semibold text-gray-500 tracking-wider uppercase mb-4">
+                Learn
+              </p>
+              <ul className="space-y-2.5">
+                {[
+                  "Learning resources",
+                  "Trading basics",
+                  "Market analysis",
+                  "Portfolio management",
+                ].map((l) => (
+                  <li key={l}>
+                    <span className="text-sm text-gray-400 hover:text-gray-200 transition-colors cursor-pointer">
+                      {l}
+                    </span>
+                  </li>
+                ))}
+              </ul>
+            </div>
+            <div>
+              <p className="text-xs font-semibold text-gray-500 tracking-wider uppercase mb-4">
+                Account
+              </p>
+              <ul className="space-y-2.5">
+                <li>
+                  <Link
+                    to="/register"
+                    className="text-sm text-gray-400 hover:text-gray-200 transition-colors"
+                  >
+                    Sign up
+                  </Link>
+                </li>
+                <li>
+                  <Link
+                    to="/login"
+                    className="text-sm text-gray-400 hover:text-gray-200 transition-colors"
+                  >
+                    Log in
+                  </Link>
+                </li>
+                <li>
+                  <Link
+                    to="/broker-apply"
+                    className="text-sm text-gray-400 hover:text-gray-200 transition-colors"
+                  >
+                    Broker application
+                  </Link>
+                </li>
+              </ul>
             </div>
           </div>
-          <div className="mt-8 pt-8 border-t border-primary-800 text-center text-sm text-gray-400">
-            <p>
-              &copy; {new Date().getFullYear()} Nebula. Built for education, not
-              profit.
-            </p>
+
+          <div className="border-t border-primary-800 pt-6 flex items-center justify-between flex-wrap gap-3">
+            <span className="text-sm text-gray-500">
+              &copy; {new Date().getFullYear()} Nebula. Built for education.
+            </span>
+            <div className="flex gap-2.5">
+              {["BSc FYP", "Virtual only", "No real trades"].map((b) => (
+                <span
+                  key={b}
+                  className="text-xs font-medium text-gray-500 border border-primary-800 rounded-md px-2.5 py-1"
+                >
+                  {b}
+                </span>
+              ))}
+            </div>
           </div>
         </div>
       </footer>
