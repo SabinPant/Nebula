@@ -19,6 +19,7 @@ export interface StockConfig {
   previousClose: number; // paise — baseline for circuit breaker
   volatility: number; // sigma in GBM formula
   drift: number; // mu in GBM formula
+  isHalted: boolean;
 }
 
 export const STOCKS: StockConfig[] = [
@@ -30,6 +31,8 @@ export const STOCKS: StockConfig[] = [
     previousClose: 48_300,
     volatility: 0.02,
     drift: 0.0001,
+    isHalted: false,
+
   },
   {
     symbol: 'NICA',
@@ -39,6 +42,8 @@ export const STOCKS: StockConfig[] = [
     previousClose: 61_800,
     volatility: 0.02,
     drift: 0.0001,
+    isHalted: false,
+
   },
   {
     symbol: 'GBIME',
@@ -48,6 +53,8 @@ export const STOCKS: StockConfig[] = [
     previousClose: 31_000,
     volatility: 0.02,
     drift: 0.0001,
+    isHalted: false,
+
   },
   {
     symbol: 'NTC',
@@ -57,6 +64,8 @@ export const STOCKS: StockConfig[] = [
     previousClose: 92_200,
     volatility: 0.018,
     drift: 0.0001,
+    isHalted: false,
+
   },
   {
     symbol: 'SHIVM',
@@ -66,6 +75,8 @@ export const STOCKS: StockConfig[] = [
     previousClose: 53_800,
     volatility: 0.025,
     drift: 0.0001,
+    isHalted: false,
+
   },
   {
     symbol: 'HDL',
@@ -75,6 +86,8 @@ export const STOCKS: StockConfig[] = [
     previousClose: 313_000,
     volatility: 0.022,
     drift: 0.0001,
+    isHalted: false,
+
   },
   {
     symbol: 'CHCL',
@@ -84,6 +97,8 @@ export const STOCKS: StockConfig[] = [
     previousClose: 78_200,
     volatility: 0.015,
     drift: 0.0001,
+    isHalted: false,
+
   },
   {
     symbol: 'UPPER',
@@ -93,6 +108,8 @@ export const STOCKS: StockConfig[] = [
     previousClose: 38_300,
     volatility: 0.015,
     drift: 0.0001,
+    isHalted: false,
+
   },
   {
     symbol: 'NLIC',
@@ -102,6 +119,7 @@ export const STOCKS: StockConfig[] = [
     previousClose: 124_500,
     volatility: 0.019,
     drift: 0.0001,
+    isHalted: false,
   },
   {
     symbol: 'SCB',
@@ -111,6 +129,7 @@ export const STOCKS: StockConfig[] = [
     previousClose: 71_800,
     volatility: 0.02,
     drift: 0.0001,
+    isHalted: false,
   },
 ];
 

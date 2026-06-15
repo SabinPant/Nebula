@@ -87,7 +87,9 @@ export function simulateTick(stock: StockConfig): TickResult {
 
   // Update the stock's current price in-place (frozen at limit if halted)
   stock.currentPrice = newPrice;
-
+  stock.currentPrice = newPrice;
+  stock.isHalted = isHalted;
+  
   const change = newPrice - stock.previousClose;
   const changePercent = (change / stock.previousClose) * 100;
 
