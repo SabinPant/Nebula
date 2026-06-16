@@ -23,6 +23,8 @@ import { Dashboard } from "../pages/trader/Dashboard";
 import { BrokerApply } from "../pages/broker-apply/Apply";
 import { Wallet } from "../pages/trader/Wallet";
 import { TopupInfo } from "../pages/trader/TopupInfo";
+import { Stocks } from "../pages/market/Stocks";
+import { StockDetail } from "../pages/market/StockDetail";
 
 // ─── Guard Components ────────────────────────────────────────────────────
 
@@ -95,6 +97,8 @@ export const router = createBrowserRouter([
       { path: "/dashboard", element: <Dashboard /> },
       { path: "/wallet", element: <Wallet /> },
       { path: "/wallet/topup-info", element: <TopupInfo /> },
+      { path: "/market", element: <Stocks /> },
+      { path: "/market/:symbol", element: <StockDetail /> },
     ],
   },
 ]);
