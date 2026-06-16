@@ -22,7 +22,7 @@
 import type { StockConfig } from './stocks.config';
 
 const CIRCUIT_BREAKER_PERCENT = 0.1;
-const TRADING_DAY_MS = 1000 * 60 * 60 * 8.5; // 09:30–18:00 = 8.5 hours
+const TRADING_DAY_MS = 1000 * 60 * 60 * 24; /// 24 hours — Nebula runs 24/7
 const TICK_INTERVAL_MS = parseInt(
   process.env.PRICE_UPDATE_INTERVAL_MS || '3000',
   10,
@@ -86,7 +86,6 @@ export function simulateTick(stock: StockConfig): TickResult {
   if (newPrice > MAX_PRICE_PAISE) newPrice = MAX_PRICE_PAISE;
 
   // Update the stock's current price in-place (frozen at limit if halted)
-  stock.currentPrice = newPrice;
   stock.currentPrice = newPrice;
   stock.isHalted = isHalted;
   
