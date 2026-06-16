@@ -158,14 +158,20 @@ export function Market() {
     }
   }, [selectedSymbol, symbolParam, setSearchParams]);
 
-  // Create the chart once on mount. The container div is always kept
-  // mounted (loading/error states overlay it rather than removing it)
-  // so this never has to run more than once.
+  // Create the chart once loading is complete and the container is in the DOM.
   useEffect(() => {
-    if (!chartContainerRef.current || chartRef.current) return;
+    // If we are still loading, or the element isn't in the DOM yet, wait.
+    if (listLoading || !chartContainerRef.current) return;
+
+    // Clean up any stray instance before creating a new one
+    if (chartRef.current) {
+      chartRef.current.remove();
+      chartRef.current = null;
+      seriesRef.current = null;
+    }
 
     const chart = createChart(chartContainerRef.current, {
-      width: chartContainerRef.current.clientWidth,
+      width: chartContainerRef.current.clientWidth || 600, // fallback if width is initially 0
       height: 500,
       layout: {
         background: { color: "#ffffff" },
@@ -193,22 +199,23 @@ export function Market() {
     chartRef.current = chart;
     seriesRef.current = series;
 
-    const handleResize = () => {
-      if (chartRef.current && chartContainerRef.current) {
-        chartRef.current.applyOptions({
-          width: chartContainerRef.current.clientWidth,
-        });
-      }
-    };
-    window.addEventListener("resize", handleResize);
+    // Bulletproof resizing: Handles grid/flex adjustments seamlessly
+    const resizeObserver = new ResizeObserver((entries) => {
+      if (entries.length === 0 || !entries[0].contentRect || !chartRef.current)
+        return;
+      const { width } = entries[0].contentRect;
+      chartRef.current.applyOptions({ width });
+    });
+
+    resizeObserver.observe(chartContainerRef.current);
 
     return () => {
-      window.removeEventListener("resize", handleResize);
+      resizeObserver.disconnect();
       chart.remove();
       chartRef.current = null;
       seriesRef.current = null;
     };
-  }, []);
+  }, [listLoading]); // Re-run when loading state changes from true to false
 
   // Fetch the stock list once and subscribe to every symbol's room so
   // list prices stay live no matter which stock is selected.
@@ -497,7 +504,9 @@ export function Market() {
             <Card>
               <p className="text-sm text-gray-500">Volatility</p>
               <p className="text-lg font-semibold text-gray-900 mt-1">
-                {(selectedStock.volatility * 100).toFixed(1)}%
+                {selectedStock.volatility
+                  ? `${(selectedStock.volatility * 100).toFixed(1)}%`
+                  : "0.0%"}
               </p>
             </Card>
             <Card>

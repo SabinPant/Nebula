@@ -6,21 +6,31 @@
  * → How It Works → User Roles → CTA Banner → Footer.
  */
 
+import { useState, useEffect, useRef } from "react";
 import { Link } from "react-router-dom";
+import {
+  createChart,
+  IChartApi,
+  ISeriesApi,
+  Time,
+  ColorType,
+} from "lightweight-charts";
 import { Button } from "../components/ui/Button";
+import api from "../services/api";
+import { formatPaise } from "../lib/utils";
 
-// ── Ticker data ──────────────────────────────────────────────────────────
-const tickerStocks = [
-  { symbol: "NABIL", price: "Rs. 485.00", change: "+2.50%", up: true },
-  { symbol: "NICA", price: "Rs. 620.00", change: "-1.20%", up: false },
-  { symbol: "GBIME", price: "Rs. 312.00", change: "+5.80%", up: true },
-  { symbol: "NTC", price: "Rs. 925.00", change: "+3.10%", up: true },
-  { symbol: "SHIVM", price: "Rs. 540.00", change: "-0.75%", up: false },
-  { symbol: "HDL", price: "Rs. 3,150.00", change: "+12.00%", up: true },
-  { symbol: "CHCL", price: "Rs. 785.00", change: "-2.30%", up: false },
-  { symbol: "UPPER", price: "Rs. 385.00", change: "+1.90%", up: true },
-  { symbol: "NLIC", price: "Rs. 1,250.00", change: "+8.40%", up: true },
-  { symbol: "SCB", price: "Rs. 720.00", change: "-0.50%", up: false },
+// ── Fallback data (Used if API is down) ──────────────────────────────────
+const FALLBACK_STOCKS = [
+  { symbol: "NABIL", currentPrice: 48500, previousClose: 47317 },
+  { symbol: "NICA", currentPrice: 62000, previousClose: 62753 },
+  { symbol: "GBIME", currentPrice: 31200, previousClose: 29489 },
+  { symbol: "NTC", currentPrice: 92500, previousClose: 89718 },
+  { symbol: "SHIVM", currentPrice: 54000, previousClose: 54408 },
+  { symbol: "HDL", currentPrice: 315000, previousClose: 281250 },
+  { symbol: "CHCL", currentPrice: 78500, previousClose: 80348 },
+  { symbol: "UPPER", currentPrice: 38500, previousClose: 37782 },
+  { symbol: "NLIC", currentPrice: 125000, previousClose: 115313 },
+  { symbol: "SCB", currentPrice: 72000, previousClose: 72361 },
 ];
 
 const features = [
@@ -86,7 +96,106 @@ const roles = [
 ];
 
 export function Landing() {
-  const doubled = [...tickerStocks, ...tickerStocks];
+  const [stocks, setStocks] = useState(FALLBACK_STOCKS);
+
+  const chartContainerRef = useRef<HTMLDivElement>(null);
+  const chartRef = useRef<IChartApi | null>(null);
+  const seriesRef = useRef<ISeriesApi<"Line"> | null>(null);
+
+  // ── 1. Fetch data & Update Chart (Polling) ───────────────────────────
+  useEffect(() => {
+    let mounted = true;
+
+    const fetchMarketData = async () => {
+      try {
+        // Safe to call without auth on public endpoint
+        const { data } = await api.get("/market/stocks");
+        if (!mounted) return;
+
+        setStocks(data);
+        updateChart(data);
+      } catch (err) {
+        console.error("Failed to fetch market data, using fallback.", err);
+        if (mounted) {
+          updateChart(FALLBACK_STOCKS);
+        }
+      }
+    };
+
+    const updateChart = (stockData: any[]) => {
+      if (!seriesRef.current) return;
+      const avgRupees =
+        stockData.reduce((acc, s) => acc + s.currentPrice, 0) /
+        stockData.length /
+        100;
+      const now = Math.floor(Date.now() / 1000) as Time;
+      seriesRef.current.update({ time: now, value: avgRupees });
+    };
+
+    fetchMarketData();
+    // Poll every 10 seconds to save anonymous user socket connections
+    const interval = setInterval(() => {
+      fetchMarketData().catch(() => {});
+    }, 10000);
+
+    return () => {
+      mounted = false;
+      clearInterval(interval);
+    };
+  }, []);
+
+  // ── 2. Initialize Lightweight Chart ────────────────────────────────────
+  useEffect(() => {
+    if (!chartContainerRef.current) return;
+    if (chartRef.current) return;
+
+    const chart = createChart(chartContainerRef.current, {
+      height: 96,
+      layout: {
+        background: { type: ColorType.Solid, color: "transparent" },
+        textColor: "transparent",
+      },
+      grid: {
+        vertLines: { visible: false },
+        horzLines: { visible: false },
+      },
+      timeScale: { visible: false },
+      rightPriceScale: { visible: false },
+      leftPriceScale: { visible: false },
+      handleScroll: false,
+      handleScale: false,
+    });
+
+    const series = chart.addLineSeries({
+      color: "#16a34a",
+      lineWidth: 2,
+      crosshairMarkerVisible: false,
+    });
+
+    chartRef.current = chart;
+    seriesRef.current = series;
+
+    return () => {
+      chart.remove();
+      chartRef.current = null;
+      seriesRef.current = null;
+    };
+  }, []);
+
+  // ── Derived Data for UI ─────────────────────────────────────────────────
+  const doubledStocks = [...stocks, ...stocks];
+
+  // Nebula Index Calculations
+  const currentIndexPaise =
+    stocks.reduce((acc, s) => acc + s.currentPrice, 0) / stocks.length;
+  const prevIndexPaise =
+    stocks.reduce((acc, s) => acc + s.previousClose, 0) / stocks.length;
+  const indexChangePaise = currentIndexPaise - prevIndexPaise;
+  const indexChangePercent = (
+    (indexChangePaise / prevIndexPaise) *
+    100
+  ).toFixed(2);
+  const isIndexUp = indexChangePaise >= 0;
 
   return (
     <div className="min-h-screen bg-white">
@@ -115,20 +224,29 @@ export function Landing() {
       {/* ── Ticker Tape ──────────────────────────────────────────────── */}
       <div className="bg-primary-900 overflow-hidden">
         <div className="flex animate-scroll whitespace-nowrap py-2">
-          {doubled.map((stock, i) => (
-            <div
-              key={i}
-              className="inline-flex items-center gap-3 px-6 border-r border-primary-800 text-sm"
-            >
-              <span className="font-semibold text-gray-200">
-                {stock.symbol}
-              </span>
-              <span className="text-gray-400">{stock.price}</span>
-              <span className={stock.up ? "text-green-400" : "text-red-400"}>
-                {stock.change}
-              </span>
-            </div>
-          ))}
+          {doubledStocks.map((stock, i) => {
+            const chgPaise = stock.currentPrice - stock.previousClose;
+            const pct = ((chgPaise / stock.previousClose) * 100).toFixed(2);
+            const isUp = chgPaise >= 0;
+
+            return (
+              <div
+                key={i}
+                className="inline-flex items-center gap-3 px-6 border-r border-primary-800 text-sm"
+              >
+                <span className="font-semibold text-gray-200">
+                  {stock.symbol}
+                </span>
+                <span className="text-gray-400">
+                  {formatPaise(stock.currentPrice)}
+                </span>
+                <span className={isUp ? "text-green-400" : "text-red-400"}>
+                  {isUp ? "+" : ""}
+                  {pct}%
+                </span>
+              </div>
+            );
+          })}
         </div>
       </div>
 
@@ -183,45 +301,61 @@ export function Landing() {
             <div className="px-6 pt-5">
               <p className="text-xs text-gray-400 mb-1">Current value</p>
               <p className="text-4xl font-bold text-gray-900 tracking-tight">
-                2,845.32
+                {(currentIndexPaise / 100).toLocaleString("en-IN", {
+                  minimumFractionDigits: 2,
+                  maximumFractionDigits: 2,
+                })}
               </p>
-              <p className="text-sm font-semibold text-green-600 mt-1.5">
-                +12.45 (0.44%)
+              <p
+                className={`text-sm font-semibold mt-1.5 ${
+                  isIndexUp ? "text-green-600" : "text-red-600"
+                }`}
+              >
+                {isIndexUp ? "+" : ""}
+                {(indexChangePaise / 100).toLocaleString("en-IN", {
+                  minimumFractionDigits: 2,
+                  maximumFractionDigits: 2,
+                })}{" "}
+                ({indexChangePercent}%)
               </p>
             </div>
             <div className="px-6 py-4">
-              <div className="h-24 bg-gradient-to-t from-green-50 to-transparent rounded flex items-end">
-                <svg viewBox="0 0 380 60" className="w-full h-full">
-                  <path
-                    d="M0,45 L38,42 L76,44 L114,35 L152,38 L190,28 L228,30 L266,20 L304,18 L342,12 L380,8"
-                    fill="none"
-                    stroke="#16a34a"
-                    strokeWidth="2"
-                    strokeLinecap="round"
-                    strokeLinejoin="round"
-                  />
-                </svg>
+              <div className="relative h-24 bg-gradient-to-t from-green-50 to-transparent rounded overflow-hidden">
+                <div
+                  ref={chartContainerRef}
+                  style={{ height: "96px", width: "100%" }}
+                />
               </div>
             </div>
             <div className="border-t border-gray-200 grid grid-cols-4">
-              {[
-                { sym: "NABIL", chg: "+2.50%", up: true },
-                { sym: "NTC", chg: "+3.10%", up: true },
-                { sym: "HDL", chg: "+12.00%", up: true },
-                { sym: "NICA", chg: "-1.20%", up: false },
-              ].map((s, i) => (
-                <div
-                  key={i}
-                  className="px-3 py-3 border-r border-gray-200 last:border-r-0 text-center"
-                >
-                  <p className="text-xs font-semibold text-gray-900">{s.sym}</p>
-                  <p
-                    className={`text-xs mt-0.5 ${s.up ? "text-green-600" : "text-red-500"}`}
+              {["NABIL", "NTC", "HDL", "NICA"].map((sym, i) => {
+                const found =
+                  stocks.find((s) => s.symbol === sym) ||
+                  FALLBACK_STOCKS.find((s) => s.symbol === sym);
+                const stock = found || FALLBACK_STOCKS[0];
+                const chgPaise = stock.currentPrice - stock.previousClose;
+                const pct = ((chgPaise / stock.previousClose) * 100).toFixed(2);
+                const isUp = chgPaise >= 0;
+
+                return (
+                  <div
+                    key={i}
+                    className="px-3 py-3 border-r border-gray-200 last:border-r-0 text-center"
                   >
-                    {s.chg}
-                  </p>
-                </div>
-              ))}
+                    <p className="text-xs font-semibold text-gray-900">
+                      {stock.symbol}
+                    </p>
+                    <p
+                      className={`text-xs mt-0.5 ${
+                        isUp ? "text-green-600" : "text-red-500"
+                      }`}
+                    >
+                      {isUp ? "+" : ""}
+                      {pct}%
+                    </p>
+                  </div>
+                );
+              })}
             </div>
           </div>
         </div>
