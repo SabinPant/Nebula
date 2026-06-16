@@ -82,12 +82,10 @@ export class MarketGateway implements OnModuleInit, OnModuleDestroy {
   }
 });
 
-    console.log('[MarketGateway] Subscribed to Redis channel: market:prices');
   }
 
   async onModuleDestroy(): Promise<void> {
     await this.redisSubscriber?.quit();
-    console.log('[MarketGateway] Redis subscriber disconnected');
   }
 
   /**

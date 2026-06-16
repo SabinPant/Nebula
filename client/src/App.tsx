@@ -12,11 +12,7 @@ function App() {
   useEffect(() => {
     // StrictMode fires effects twice in development.
     // The second invocation hits this guard and exits immediately.
-    console.log("[App] useEffect fired, hasRestored:", hasRestoredRef.current);
-    if (hasRestoredRef.current) {
-      console.log("[App] Second invocation blocked by ref guard");
-      return;
-    }
+    if (hasRestoredRef.current) return;
 
     async function restoreSession() {
       if (isAuthenticated) {
