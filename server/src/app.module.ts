@@ -19,6 +19,7 @@ import { ThrottlerRedisStorage } from './core/config/throttler-redis.storage';
 import { RATE_LIMITS } from './core/config/rate-limit.config';
 import { BrokerModule } from './modules/broker/broker.module';
 import { WalletModule } from './modules/wallet/wallet.module';
+import { MarketModule } from './modules/market/market.module';
 
 @Global()
 @Module({
@@ -45,7 +46,7 @@ import { WalletModule } from './modules/wallet/wallet.module';
     AuthModule,
     BrokerModule,
     WalletModule,
-
+    MarketModule,
   ],
   controllers: [],
   providers: [
