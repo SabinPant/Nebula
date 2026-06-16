@@ -14,6 +14,7 @@ import { Button } from "../../components/ui/Button";
 import { Alert } from "../../components/ui/Alert";
 import { useAuthStore } from "../../stores/authStore";
 import api from "../../services/api";
+import { connectSocket } from "../../lib/socket";
 
 export function Login() {
   const navigate = useNavigate();
@@ -38,6 +39,7 @@ export function Login() {
       });
 
       login(data.accessToken, deviceId, data.user);
+      connectSocket();
 
       if (data.user.isOnboardingComplete) {
         navigate("/dashboard", { replace: true });

@@ -10,6 +10,7 @@
  */
 
 import { create } from 'zustand';
+import { disconnectSocket } from '../lib/socket';
 
 interface User {
   id: string;
@@ -59,6 +60,7 @@ export const useAuthStore = create<AuthState>((set) => ({
   },
 
     clearAuth: () => {
+      disconnectSocket();
     localStorage.removeItem('nebula_deviceId');
     set({
       accessToken: null,
