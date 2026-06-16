@@ -8,6 +8,10 @@
  *
  * Public routes: landing, login, register, verify-email, forgot/reset password
  * Protected routes: onboarding, dashboard
+ *
+ * Fully onboarded routes are additionally nested under AuthenticatedLayout,
+ * which renders the sidebar shell once and an <Outlet /> for page content —
+ * pages never render their own header/nav.
  */
 
 import { createBrowserRouter, Navigate, Outlet } from "react-router-dom";
@@ -25,6 +29,7 @@ import { Wallet } from "../pages/trader/Wallet";
 import { TopupInfo } from "../pages/trader/TopupInfo";
 import { Stocks } from "../pages/market/Stocks";
 import { StockDetail } from "../pages/market/StockDetail";
+import { AuthenticatedLayout } from "../components/layout/AuthenticatedLayout";
 
 // ─── Guard Components ────────────────────────────────────────────────────
 
@@ -90,15 +95,20 @@ export const router = createBrowserRouter([
     children: [{ path: "/onboarding", element: <Onboarding /> }],
   },
 
-  // Fully onboarded only
+  // Fully onboarded only — wrapped in the sidebar layout
   {
     element: <OnboardingGuard />,
     children: [
-      { path: "/dashboard", element: <Dashboard /> },
-      { path: "/wallet", element: <Wallet /> },
-      { path: "/wallet/topup-info", element: <TopupInfo /> },
-      { path: "/market", element: <Stocks /> },
-      { path: "/market/:symbol", element: <StockDetail /> },
+      {
+        element: <AuthenticatedLayout />,
+        children: [
+          { path: "/dashboard", element: <Dashboard /> },
+          { path: "/wallet", element: <Wallet /> },
+          { path: "/wallet/topup-info", element: <TopupInfo /> },
+          { path: "/market", element: <Stocks /> },
+          { path: "/market/:symbol", element: <StockDetail /> },
+        ],
+      },
     ],
   },
 ]);
