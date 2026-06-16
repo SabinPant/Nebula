@@ -98,7 +98,7 @@ export function Wallet() {
 
   if (loading) {
     return (
-      <div className="min-h-screen bg-surface-50 flex items-center justify-center">
+      <div className="flex items-center justify-center py-24">
         <div className="w-8 h-8 border-4 border-primary-200 border-t-primary-700 rounded-full animate-spin" />
       </div>
     );
@@ -106,134 +106,109 @@ export function Wallet() {
 
   if (error && !wallet) {
     return (
-      <div className="min-h-screen bg-surface-50 p-6">
+      <div className="p-6">
         <Alert variant="error">{error}</Alert>
       </div>
     );
   }
 
   return (
-    <div className="min-h-screen bg-surface-50">
-      {/* Top bar */}
-      <header className="bg-white border-b border-gray-200">
-        <div className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 h-16 flex items-center justify-between">
-          <div className="flex items-center space-x-6">
-            <Link
-              to="/dashboard"
-              className="text-xl font-bold text-primary-900"
-            >
-              Nebula
-            </Link>
-            <Link
-              to="/dashboard"
-              className="text-sm text-gray-500 hover:text-gray-700"
-            >
-              Dashboard
-            </Link>
-            <Link to="/wallet" className="text-sm text-primary-700 font-medium">
-              Wallet
-            </Link>
-          </div>
-        </div>
-      </header>
+    <div className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 py-8 space-y-6">
+      <h1 className="text-2xl font-bold text-gray-900">Wallet</h1>
 
-      <main className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 py-8 space-y-6">
-        <h1 className="text-2xl font-bold text-gray-900">Wallet</h1>
-
-        {/* Balance Cards */}
-        <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-          <Card>
-            <p className="text-sm text-gray-500">Available Balance</p>
-            <p className="text-2xl font-bold text-gray-900 mt-1">
-              {wallet?.displayBalance ??
-                formatPaise(wallet?.availableBalance ?? 0)}
-            </p>
-          </Card>
-          <Card>
-            <p className="text-sm text-gray-500">Reserved</p>
-            <p className="text-2xl font-bold text-gray-900 mt-1">
-              {formatPaise(wallet?.reservedBalance ?? 0)}
-            </p>
-          </Card>
-          <Card>
-            <p className="text-sm text-gray-500">Total Deposited</p>
-            <p className="text-2xl font-bold text-gray-900 mt-1">
-              {formatPaise(wallet?.totalDeposited ?? 0)}
-            </p>
-          </Card>
-        </div>
-
-        {/* Top-up link */}
+      {/* Balance Cards */}
+      <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
         <Card>
-          <div className="flex items-center justify-between">
-            <div>
-              <p className="font-medium text-gray-900">Need more collateral?</p>
-              <p className="text-sm text-gray-500 mt-1">
-                Contact your broker to add funds to your account.
-              </p>
-            </div>
-            <Link to="/wallet/topup-info">
-              <Button variant="secondary" size="sm">
-                View Broker Info
-              </Button>
-            </Link>
-          </div>
+          <p className="text-sm text-gray-500">Available Balance</p>
+          <p className="text-2xl font-bold text-gray-900 mt-1">
+            {wallet?.displayBalance ??
+              formatPaise(wallet?.availableBalance ?? 0)}
+          </p>
         </Card>
+        <Card>
+          <p className="text-sm text-gray-500">Reserved</p>
+          <p className="text-2xl font-bold text-gray-900 mt-1">
+            {formatPaise(wallet?.reservedBalance ?? 0)}
+          </p>
+        </Card>
+        <Card>
+          <p className="text-sm text-gray-500">Total Deposited</p>
+          <p className="text-2xl font-bold text-gray-900 mt-1">
+            {formatPaise(wallet?.totalDeposited ?? 0)}
+          </p>
+        </Card>
+      </div>
 
-        {/* Transaction History */}
-        <Card title="Transaction History">
-          {error && (
-            <div className="mb-4">
-              <Alert variant="error">{error}</Alert>
-            </div>
-          )}
-          {transactions.length === 0 ? (
-            <p className="text-sm text-gray-500">No transactions yet.</p>
-          ) : (
-            <div className="space-y-3">
-              {transactions.map((tx) => (
-                <div
-                  key={tx.id}
-                  className="flex items-center justify-between py-2 border-b border-gray-100 last:border-0"
-                >
-                  <div>
-                    <p className="text-sm font-medium text-gray-900">
-                      {TRANSACTION_LABELS[tx.type] ?? tx.type}
-                    </p>
-                    <p className="text-xs text-gray-400 mt-0.5">
-                      {tx.description}
-                    </p>
-                    <p className="text-xs text-gray-400">
-                      {formatDate(tx.createdAt)}
-                    </p>
-                  </div>
-                  <p
-                    className={`text-sm font-semibold ${
-                      tx.amount >= 0 ? "text-green-600" : "text-red-600"
-                    }`}
-                  >
-                    {tx.amount >= 0 ? "+" : ""}
-                    {formatPaise(tx.amount)}
+      {/* Top-up link */}
+      <Card>
+        <div className="flex items-center justify-between">
+          <div>
+            <p className="font-medium text-gray-900">Need more collateral?</p>
+            <p className="text-sm text-gray-500 mt-1">
+              Contact your broker to add funds to your account.
+            </p>
+          </div>
+          <Link to="/wallet/topup-info">
+            <Button variant="secondary" size="sm">
+              View Broker Info
+            </Button>
+          </Link>
+        </div>
+      </Card>
+
+      {/* Transaction History */}
+      <Card title="Transaction History">
+        {error && (
+          <div className="mb-4">
+            <Alert variant="error">{error}</Alert>
+          </div>
+        )}
+        {transactions.length === 0 ? (
+          <p className="text-sm text-gray-500">No transactions yet.</p>
+        ) : (
+          <div className="space-y-3">
+            {transactions.map((tx) => (
+              <div
+                key={tx.id}
+                className="flex items-center justify-between py-2 border-b border-gray-100 last:border-0"
+              >
+                <div>
+                  <p className="text-sm font-medium text-gray-900">
+                    {TRANSACTION_LABELS[tx.type] ?? tx.type}
+                  </p>
+                  <p className="text-xs text-gray-400 mt-0.5">
+                    {tx.description}
+                  </p>
+                  <p className="text-xs text-gray-400">
+                    {formatDate(tx.createdAt)}
                   </p>
                 </div>
-              ))}
+                <p
+                  className={`text-sm font-semibold ${
+                    tx.amount >= 0 ? "text-green-600" : "text-red-600"
+                  }`}
+                >
+                  {tx.amount >= 0 ? "+" : ""}
+                  {formatPaise(tx.amount)}
+                </p>
+              </div>
+            ))}
 
-              {hasMore && (
-                <div className="pt-2 text-center">
-                  <Button
-                    variant="secondary"
-                    size="sm"
-                    onClick={loadMore}
-                    disabled={loadingMore}
-                  >
-                    {loadingMore ? "Loading..." : "Load More"}
-                  </Button>
-                </div>
-              )}
-            </div>
-          )}
-        </Card>
-      </main>
+            {hasMore && (
+              <div className="pt-2 text-center">
+                <Button
+                  variant="secondary"
+                  size="sm"
+                  onClick={loadMore}
+                  disabled={loadingMore}
+                >
+                  {loadingMore ? "Loading..." : "Load More"}
+                </Button>
+              </div>
+            )}
+          </div>
+        )}
+      </Card>
     </div>
   );
 }
