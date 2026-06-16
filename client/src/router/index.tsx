@@ -27,9 +27,9 @@ import { Dashboard } from "../pages/trader/Dashboard";
 import { BrokerApply } from "../pages/broker-apply/Apply";
 import { Wallet } from "../pages/trader/Wallet";
 import { TopupInfo } from "../pages/trader/TopupInfo";
-import { Stocks } from "../pages/market/Stocks";
-import { StockDetail } from "../pages/market/StockDetail";
+import { Market } from "../pages/market/Market";
 import { AuthenticatedLayout } from "../components/layout/AuthenticatedLayout";
+import { useParams } from "react-router-dom";
 
 // ─── Guard Components ────────────────────────────────────────────────────
 
@@ -65,6 +65,11 @@ function GuestGuard() {
   }
 
   return <Outlet />;
+}
+
+function OldMarketRedirect() {
+  const { symbol } = useParams<{ symbol: string }>();
+  return <Navigate to={`/market?symbol=${symbol}`} replace />;
 }
 
 // ─── Router ──────────────────────────────────────────────────────────────
@@ -105,8 +110,8 @@ export const router = createBrowserRouter([
           { path: "/dashboard", element: <Dashboard /> },
           { path: "/wallet", element: <Wallet /> },
           { path: "/wallet/topup-info", element: <TopupInfo /> },
-          { path: "/market", element: <Stocks /> },
-          { path: "/market/:symbol", element: <StockDetail /> },
+          { path: "/market", element: <Market /> },
+          { path: "/market/:symbol", element: <OldMarketRedirect /> },
         ],
       },
     ],

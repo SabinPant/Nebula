@@ -51,7 +51,7 @@ export function TopupInfo() {
 
   if (loading) {
     return (
-      <div className="min-h-screen bg-surface-50 flex items-center justify-center">
+      <div className="flex items-center justify-center py-24">
         <div className="w-8 h-8 border-4 border-primary-200 border-t-primary-700 rounded-full animate-spin" />
       </div>
     );
@@ -59,7 +59,7 @@ export function TopupInfo() {
 
   if (error) {
     return (
-      <div className="min-h-screen bg-surface-50 p-6">
+      <div className="p-6">
         <Alert variant="error">{error}</Alert>
       </div>
     );
@@ -68,138 +68,105 @@ export function TopupInfo() {
   if (!data) return null;
 
   return (
-    <div className="min-h-screen bg-surface-50">
-      {/* Top bar */}
-      <header className="bg-white border-b border-gray-200">
-        <div className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 h-16 flex items-center justify-between">
-          <div className="flex items-center space-x-6">
-            <Link
-              to="/dashboard"
-              className="text-xl font-bold text-primary-900"
-            >
-              Nebula
-            </Link>
-            <Link
-              to="/dashboard"
-              className="text-sm text-gray-500 hover:text-gray-700"
-            >
-              Dashboard
-            </Link>
-            <Link
-              to="/wallet"
-              className="text-sm text-gray-500 hover:text-gray-700"
-            >
-              Wallet
-            </Link>
-            <span className="text-sm text-primary-700 font-medium">
-              Broker Info
+    <div className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 py-8 space-y-6">
+      <h1 className="text-2xl font-bold text-gray-900">Broker Information</h1>
+
+      {/* Warning states */}
+      {data.message && !data.broker && (
+        <Alert variant="info">{data.message}</Alert>
+      )}
+
+      {data.message && data.broker && (
+        <Alert variant="warning">{data.message}</Alert>
+      )}
+
+      {/* Broker contact card */}
+      {data.broker && (
+        <Card title="Your Broker">
+          <div className="space-y-2">
+            <div>
+              <p className="text-sm text-gray-500">Name</p>
+              <p className="text-gray-900 font-medium">
+                {data.broker.displayName}
+              </p>
+            </div>
+            <div>
+              <p className="text-sm text-gray-500">Broker Number</p>
+              <p className="text-gray-900">{data.broker.brokerNumber}</p>
+            </div>
+            <div>
+              <p className="text-sm text-gray-500">Email</p>
+              <a
+                href={`mailto:${data.broker.email}`}
+                className="text-primary-600 hover:text-primary-700"
+              >
+                {data.broker.email}
+              </a>
+            </div>
+            {data.broker.phone && (
+              <div>
+                <p className="text-sm text-gray-500">Phone</p>
+                <p className="text-gray-900">{data.broker.phone}</p>
+              </div>
+            )}
+          </div>
+        </Card>
+      )}
+
+      {/* Weekly cap status */}
+      <Card title="Weekly Top-Up Status">
+        <div className="space-y-3">
+          <div className="flex justify-between">
+            <span className="text-sm text-gray-500">Weekly Cap</span>
+            <span className="text-sm font-medium text-gray-900">
+              {formatPaise(data.weeklyCapPaise)}
+            </span>
+          </div>
+          <div className="flex justify-between">
+            <span className="text-sm text-gray-500">Used This Week</span>
+            <span className="text-sm font-medium text-gray-900">
+              {formatPaise(data.weeklyUsedPaise)}
+            </span>
+          </div>
+          <div className="flex justify-between border-t border-gray-200 pt-2">
+            <span className="text-sm font-medium text-gray-700">Remaining</span>
+            <span className="text-sm font-bold text-primary-700">
+              {formatPaise(data.weeklyRemainingPaise)}
             </span>
           </div>
         </div>
-      </header>
+      </Card>
 
-      <main className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 py-8 space-y-6">
-        <h1 className="text-2xl font-bold text-gray-900">Broker Information</h1>
-
-        {/* Warning states */}
-        {data.message && !data.broker && (
-          <Alert variant="info">{data.message}</Alert>
-        )}
-
-        {data.message && data.broker && (
-          <Alert variant="warning">{data.message}</Alert>
-        )}
-
-        {/* Broker contact card */}
-        {data.broker && (
-          <Card title="Your Broker">
-            <div className="space-y-2">
-              <div>
-                <p className="text-sm text-gray-500">Name</p>
-                <p className="text-gray-900 font-medium">
-                  {data.broker.displayName}
-                </p>
-              </div>
-              <div>
-                <p className="text-sm text-gray-500">Broker Number</p>
-                <p className="text-gray-900">{data.broker.brokerNumber}</p>
-              </div>
-              <div>
-                <p className="text-sm text-gray-500">Email</p>
-                <a
-                  href={`mailto:${data.broker.email}`}
-                  className="text-primary-600 hover:text-primary-700"
-                >
-                  {data.broker.email}
-                </a>
-              </div>
-              {data.broker.phone && (
-                <div>
-                  <p className="text-sm text-gray-500">Phone</p>
-                  <p className="text-gray-900">{data.broker.phone}</p>
-                </div>
-              )}
-            </div>
-          </Card>
-        )}
-
-        {/* Weekly cap status */}
-        <Card title="Weekly Top-Up Status">
-          <div className="space-y-3">
-            <div className="flex justify-between">
-              <span className="text-sm text-gray-500">Weekly Cap</span>
-              <span className="text-sm font-medium text-gray-900">
-                {formatPaise(data.weeklyCapPaise)}
-              </span>
-            </div>
-            <div className="flex justify-between">
-              <span className="text-sm text-gray-500">Used This Week</span>
-              <span className="text-sm font-medium text-gray-900">
-                {formatPaise(data.weeklyUsedPaise)}
-              </span>
-            </div>
-            <div className="flex justify-between border-t border-gray-200 pt-2">
-              <span className="text-sm font-medium text-gray-700">
-                Remaining
-              </span>
-              <span className="text-sm font-bold text-primary-700">
-                {formatPaise(data.weeklyRemainingPaise)}
-              </span>
-            </div>
-          </div>
-        </Card>
-
-        {/* Instructions */}
-        <Card>
-          <div className="text-sm text-gray-600 space-y-2">
-            <p>
-              <strong>How to add collateral:</strong>
-            </p>
-            <ol className="list-decimal list-inside space-y-1">
-              <li>Contact your broker using the details above.</li>
-              <li>
-                Send the desired amount via eSewa, Khalti, bank transfer, or QR.
-              </li>
-              <li>
-                Share your payment receipt with your broker outside Nebula
-                (WhatsApp, email, or phone).
-              </li>
-              <li>
-                Your broker will verify the payment and credit your Nebula
-                wallet within 24 hours.
-              </li>
-            </ol>
-          </div>
-        </Card>
-
-        <div className="text-center">
-          <Link to="/wallet">
-            <span className="text-sm text-primary-600 hover:text-primary-700">
-              Back to Wallet
-            </span>
-          </Link>
+      {/* Instructions */}
+      <Card>
+        <div className="text-sm text-gray-600 space-y-2">
+          <p>
+            <strong>How to add collateral:</strong>
+          </p>
+          <ol className="list-decimal list-inside space-y-1">
+            <li>Contact your broker using the details above.</li>
+            <li>
+              Send the desired amount via eSewa, Khalti, bank transfer, or QR.
+            </li>
+            <li>
+              Share your payment receipt with your broker outside Nebula
+              (WhatsApp, email, or phone).
+            </li>
+            <li>
+              Your broker will verify the payment and credit your Nebula wallet
+              within 24 hours.
+            </li>
+          </ol>
         </div>
-      </main>
+      </Card>
+
+      <div className="text-center">
+        <Link to="/wallet">
+          <span className="text-sm text-primary-600 hover:text-primary-700">
+            Back to Wallet
+          </span>
+        </Link>
+      </div>
     </div>
   );
 }
