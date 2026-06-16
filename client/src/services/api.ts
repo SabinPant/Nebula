@@ -64,6 +64,7 @@ function processQueue(error: unknown, token: string | null): void {
 api.interceptors.response.use(
   (response) => response,
   async (error: AxiosError) => {
+      console.log('[Interceptor] 401 detected for:', error.config?.url);
     const originalRequest = error.config as InternalAxiosRequestConfig & {
       _retry?: boolean;
     };
@@ -114,7 +115,6 @@ api.interceptors.response.use(
     } catch (refreshError) {
       processQueue(refreshError, null);
       useAuthStore.getState().clearAuth();
-      window.location.href = '/login';
       return Promise.reject(refreshError);
     } finally {
       isRefreshing = false;

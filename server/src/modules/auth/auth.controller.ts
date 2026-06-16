@@ -129,7 +129,6 @@ constructor(
    */
   @Post('refresh')
   @HttpCode(HttpStatus.OK)
-  @Throttle({ default: { limit: RATE_LIMITS.LOGIN.limit, ttl: RATE_LIMITS.LOGIN.ttl } })
   async refresh(
     @Req() req: Request,
     @Res({ passthrough: true }) res: Response,
@@ -160,6 +159,31 @@ constructor(
     // Return only the access token — refresh token is in the cookie
     return { accessToken: result.accessToken };
   }
+   
+  /**
+ * Returns the current authenticated user's profile.
+ * Used by the frontend to restore session state after page reload.
+ */
+@Get('me')
+@HttpCode(HttpStatus.OK)
+@UseGuards(JwtAuthGuard)
+async me(@Req() req: Request) {
+  const user = req.user as {
+    id: string;
+    email: string;
+    displayName: string | null;
+    userType: string;
+    isOnboardingComplete: boolean;
+  };
+
+  return {
+    id: user.id,
+    email: user.email,
+    displayName: user.displayName,
+    userType: user.userType,
+    isOnboardingComplete: user.isOnboardingComplete,
+  };
+}
 
     /**
    * Logs out the current device.
@@ -295,9 +319,9 @@ constructor(
     return {
       httpOnly: true,
       secure: process.env.NODE_ENV === 'production',
-      sameSite: (process.env.NODE_ENV === 'production' ? 'none' : 'strict') as 'none' | 'strict',
+      sameSite: (process.env.NODE_ENV === 'production' ? 'none' : 'lax') as 'none' | 'lax',
       maxAge: 7 * 24 * 60 * 60 * 1000, // 7 days
-      path: '/api/v1/auth',
+      path: '/',
     };
   }
 

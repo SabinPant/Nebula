@@ -49,15 +49,11 @@ export const useAuthStore = create<AuthState>((set) => ({
 
   setUser: (user) => set({ user }),
 
-  login: (accessToken, deviceId, user) => {
-    localStorage.setItem('nebula_deviceId', deviceId);
-    set({
-      accessToken,
-      deviceId,
-      user,
-      isAuthenticated: true,
-    });
-  },
+ login: (accessToken, deviceId, user) => {
+  const id = deviceId || crypto.randomUUID();
+  localStorage.setItem('nebula_deviceId', id);
+  set({ accessToken, deviceId: id, user, isAuthenticated: true });
+},
 
     clearAuth: () => {
       disconnectSocket();

@@ -97,7 +97,7 @@ export class GlobalExceptionFilter implements ExceptionFilter {
       request.path === '/api/v1/auth/refresh' &&
       (code === 'TOKEN_REVOKED' || code === 'ACCOUNT_SUSPENDED')
     ) {
-      response.clearCookie('refreshToken', { path: '/api/v1/auth' });
+      response.clearCookie('refreshToken', { path: '/' });
     }
 
     // Standardized error response — never exposes internals

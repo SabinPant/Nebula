@@ -264,7 +264,7 @@ export class AuthService {
 
     // 10. Delete old hash — this is a separate round-trip, but store-before-revoke
     // ensures the user keeps access if this deletion fails.
-    await this.tokenStorage.invalidateRefreshToken(user.id, deviceId);
+    // await this.tokenStorage.invalidateRefreshToken(user.id, deviceId);
 
     // 11. Return new token pair
     return { accessToken, refreshToken };
