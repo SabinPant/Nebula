@@ -49,38 +49,44 @@ export class MarketService {
   /**
    * Returns historical OHLCV candles for a stock.
    */
-  async getStockHistory(
-    symbol: string,
-    interval: string = '1m',
-    limit: number = 100,
-  ) {
-    const stock = await this.marketRepository.findStockBySymbol(
-      symbol.toUpperCase(),
-    );
+async getStockHistory(
+  symbol: string,
+  interval: string = '1m',
+  limit: number = 100,
+) {
+  const stock = await this.marketRepository.findStockBySymbol(
+    symbol.toUpperCase(),
+  );
 
-    if (!stock) {
-      throw new NotFoundException({
-        code: 'NOT_FOUND',
-        message: `Stock with symbol "${symbol.toUpperCase()}" not found`,
-      });
-    }
-
-    const validIntervals = ['1m', '5m', '1h', '1d'];
-    if (!validIntervals.includes(interval)) {
-      throw new BadRequestException({
-        code: 'VALIDATION_ERROR',
-        message: `Invalid interval. Must be one of: ${validIntervals.join(', ')}`,
-      });
-    }
-
-    const cappedLimit = Math.min(Math.max(limit, 1), 500);
-
-    return this.marketRepository.findPriceHistory(
-      stock.id,
-      interval,
-      cappedLimit,
-    );
+  if (!stock) {
+    throw new NotFoundException({
+      code: 'NOT_FOUND',
+      message: `Stock with symbol "${symbol.toUpperCase()}" not found`,
+    });
   }
+
+  const validIntervals = ['1m', '5m', '1h', '1d'];
+  if (!validIntervals.includes(interval)) {
+    throw new BadRequestException({
+      code: 'VALIDATION_ERROR',
+      message: `Invalid interval. Must be one of: ${validIntervals.join(', ')}`,
+    });
+  }
+
+  const cappedLimit = Math.min(Math.max(limit, 1), 500);
+
+  const candles = await this.marketRepository.findPriceHistory(
+    stock.id,
+    interval,
+    cappedLimit,
+  );
+
+  // Convert BigInt volume to number for JSON serialization
+  return candles.map((candle) => ({
+    ...candle,
+    volume: Number(candle.volume),
+  }));
+}
 
   /**
    * Returns the current market status.
