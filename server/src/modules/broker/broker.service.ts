@@ -64,6 +64,18 @@ export class BrokerService {
       });
     }
 
+    // Check for duplicate application by phone
+const existingByPhone = await this.prisma.brokerApplication.findFirst({
+  where: { phone: dto.phone },
+});
+
+if (existingByPhone) {
+  throw new ConflictException({
+    code: 'DUPLICATE_PHONE',
+    message: 'This phone number has already been used for an application.',
+  });
+}
+
     // Upload document to Cloudinary
     const uploadResult = await this.cloudinaryService.uploadFile(
       file,

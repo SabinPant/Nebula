@@ -119,6 +119,11 @@ export function BrokerApply() {
           case "VALIDATION_ERROR":
             setError(message || "Please check your information and try again.");
             break;
+          case "DUPLICATE_PHONE":
+            setError(
+              "This phone number has already been used for an application.",
+            );
+            break;
           default:
             setError(message || "Something went wrong. Please try again.");
         }
