@@ -1,4 +1,6 @@
 import { useAuthStore } from "../../stores/authStore";
+import { NebulaIndexChart } from "../../components/market/NebulaIndexChart";
+import { Card } from "../../components/ui/Card";
 
 export function Dashboard() {
   const user = useAuthStore((state) => state.user);
@@ -25,6 +27,12 @@ export function Dashboard() {
           <p className="text-sm text-gray-400">Profit / Loss</p>
           <p className="text-2xl font-bold text-gray-900 mt-1">—</p>
         </div>
+      </div>
+
+      <div className="mt-6">
+        <Card title="Nebula Index">
+          <NebulaIndexChart height={200} showDetails />
+        </Card>
       </div>
     </div>
   );

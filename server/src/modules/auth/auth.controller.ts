@@ -84,7 +84,7 @@ constructor(
       const params = `token=${result.accessToken}&deviceId=${result.deviceId}`;
       const redirectPath = result.user.isOnboardingComplete
         ? '/dashboard'
-        : '/onboarding/select-broker';
+        : '/onboarding';
 
       return res.redirect(`${frontendUrl}${redirectPath}?${params}`);
     } catch (error) {

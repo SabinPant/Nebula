@@ -106,6 +106,46 @@ export function Landing() {
   useEffect(() => {
     let mounted = true;
 
+    // Seed the chart with fallback data immediately so it's never blank
+    const seedFallback = () => {
+      if (!seriesRef.current) return;
+      const now = Math.floor(Date.now() / 1000);
+      const avgRupees =
+        FALLBACK_STOCKS.reduce((acc, s) => acc + s.currentPrice, 0) /
+        FALLBACK_STOCKS.length /
+        100;
+      // Build 30 synthetic historical points spaced 1 minute apart
+      const points = Array.from({ length: 30 }, (_, i) => ({
+        time: (now - (29 - i) * 60) as Time,
+        value: avgRupees * (1 + (Math.random() - 0.5) * 0.002),
+      }));
+      seriesRef.current.setData(points);
+    };
+
+    const fetchHistory = async () => {
+      try {
+        const [historyRes, stocksRes] = await Promise.all([
+          api.get("/market/index-history?interval=1m&limit=30"),
+          api.get("/market/stocks"),
+        ]);
+        if (!mounted) return;
+
+        const indexData: { time: number; value: number }[] =
+          historyRes.data ?? [];
+        const liveStocks: any[] = stocksRes.data ?? [];
+
+        if (liveStocks.length) setStocks(liveStocks);
+
+        if (indexData.length && seriesRef.current) {
+          seriesRef.current.setData(
+            indexData.map((d) => ({ time: d.time as Time, value: d.value })),
+          );
+        }
+      } catch (err) {
+        console.error("Failed to fetch market history, keeping fallback.", err);
+      }
+    };
+
     const fetchMarketData = async () => {
       try {
         // Safe to call without auth on public endpoint
@@ -132,11 +172,14 @@ export function Landing() {
       seriesRef.current.update({ time: now, value: avgRupees });
     };
 
-    fetchMarketData();
-    // Poll every 10 seconds to save anonymous user socket connections
+    // Show fallback immediately, then replace with real history
+    seedFallback();
+    fetchHistory();
+
+    // Poll every 3 seconds to match the GBM engine's tick interval
     const interval = setInterval(() => {
       fetchMarketData().catch(() => {});
-    }, 10000);
+    }, 3000);
 
     return () => {
       mounted = false;
@@ -150,7 +193,7 @@ export function Landing() {
     if (chartRef.current) return;
 
     const chart = createChart(chartContainerRef.current, {
-      height: 96,
+      height: 120,
       layout: {
         background: { type: ColorType.Solid, color: "transparent" },
         textColor: "transparent",
@@ -170,6 +213,8 @@ export function Landing() {
       color: "#16a34a",
       lineWidth: 2,
       crosshairMarkerVisible: false,
+      priceLineVisible: false,
+      lastValueVisible: false,
     });
 
     chartRef.current = chart;
@@ -183,7 +228,9 @@ export function Landing() {
   }, []);
 
   // ── Derived Data for UI ─────────────────────────────────────────────────
-  const doubledStocks = [...stocks, ...stocks];
+  // Duplicate exactly once so the seamless CSS loop covers a full 2× set
+  const singleStocks = stocks.length ? stocks : FALLBACK_STOCKS;
+  const doubledStocks = [...singleStocks, ...singleStocks];
 
   // Nebula Index Calculations
   const currentIndexPaise =
@@ -223,7 +270,10 @@ export function Landing() {
 
       {/* ── Ticker Tape ──────────────────────────────────────────────── */}
       <div className="bg-primary-900 overflow-hidden">
-        <div className="flex animate-scroll whitespace-nowrap py-2">
+        <div
+          className="flex animate-scroll whitespace-nowrap py-2"
+          style={{ animationDuration: "60s" }}
+        >
           {doubledStocks.map((stock, i) => {
             const chgPaise = stock.currentPrice - stock.previousClose;
             const pct = ((chgPaise / stock.previousClose) * 100).toFixed(2);
@@ -320,10 +370,10 @@ export function Landing() {
               </p>
             </div>
             <div className="px-6 py-4">
-              <div className="relative h-24 bg-gradient-to-t from-green-50 to-transparent rounded overflow-hidden">
+              <div className="relative h-[120px] bg-gradient-to-t from-green-50 to-transparent rounded overflow-hidden">
                 <div
                   ref={chartContainerRef}
-                  style={{ height: "96px", width: "100%" }}
+                  style={{ height: "120px", width: "100%" }}
                 />
               </div>
             </div>

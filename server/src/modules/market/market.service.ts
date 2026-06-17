@@ -162,4 +162,42 @@ async getStockHistory(
 
     return { message: `${stock.symbol} removed from watchlist` };
   }
+
+    async getIndexHistory(interval: string = '1m', limit: number = 30) {
+    const validIntervals = ['1m', '5m', '1h', '1d'];
+    if (!validIntervals.includes(interval)) {
+      throw new BadRequestException({
+        code: 'VALIDATION_ERROR',
+        message: `Invalid interval. Must be one of: ${validIntervals.join(', ')}`,
+      });
+    }
+
+    const cappedLimit = Math.min(Math.max(limit, 1), 100);
+    const candles = await this.marketRepository.findAllStocksHistory(interval, cappedLimit);
+
+    // Group candles by timestamp and compute average close
+    const grouped = new Map<number, { total: number; count: number }>();
+
+    for (const candle of candles) {
+      const time = candle.timestamp.getTime();
+      const existing = grouped.get(time);
+      if (existing) {
+        existing.total += candle.close;
+        existing.count += 1;
+      } else {
+        grouped.set(time, { total: candle.close, count: 1 });
+      }
+    }
+
+    // Convert to sorted array with average
+    const result = Array.from(grouped.entries())
+      .map(([time, { total, count }]) => ({
+        time: Math.floor(time / 1000),
+        value: Math.round(total / count) / 100, // Average paise → rupees
+      }))
+      .sort((a, b) => a.time - b.time);
+
+    return result;
+  }
+  
 }

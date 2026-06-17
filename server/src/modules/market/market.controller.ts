@@ -39,7 +39,19 @@ export class MarketController {
     return this.marketService.getStocks();
   }
 
-    @Get('stocks/:symbol/history')
+    @Get('index-history')
+  @HttpCode(HttpStatus.OK)
+  getIndexHistory(
+    @Query('interval') interval?: string,
+    @Query('limit') limit?: string,
+  ) {
+    return this.marketService.getIndexHistory(
+      interval || '1m',
+      limit ? parseInt(limit, 10) : 30,
+    );
+  }
+
+  @Get('stocks/:symbol/history')
   @HttpCode(HttpStatus.OK)
   getStockHistory(
     @Param('symbol') symbol: string,

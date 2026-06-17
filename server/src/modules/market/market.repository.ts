@@ -171,4 +171,18 @@ export class MarketRepository {
       where: { userId, stockId },
     });
   }
+
+    async findAllStocksHistory(interval: string = '1m', limit: number = 30) {
+    return this.prisma.priceHistory.findMany({
+      where: { interval },
+      orderBy: { timestamp: 'asc' },
+      take: limit * 10, // 10 stocks × limit candles each
+      select: {
+        stockId: true,
+        close: true,
+        timestamp: true,
+        interval: true,
+      },
+    });
+  }
 }
