@@ -211,7 +211,7 @@ export function BrokerApply() {
             onChange={(e) => setReason(e.target.value)}
             rows={4}
             placeholder="Tell us about your background and why you'd make a great broker (min. 20 characters)"
-            className="w-full rounded-md border border-gray-300 px-3 py-2 text-sm shadow-sm placeholder:text-gray-400 focus:outline-none focus:ring-2 focus:ring-primary-500 focus:border-primary-500"
+            className="w-full rounded-md border border-gray-300 px-3 py-2 text-sm text-gray-900 shadow-sm placeholder:text-gray-400 focus:outline-none focus:ring-2 focus:ring-primary-500 focus:border-primary-500"
           />
           {fieldErrors.reason && (
             <p className="mt-1 text-sm text-danger-500">{fieldErrors.reason}</p>

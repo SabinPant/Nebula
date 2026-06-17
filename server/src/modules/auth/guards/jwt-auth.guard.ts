@@ -13,7 +13,7 @@
  * Usage: @UseGuards(JwtAuthGuard) on any controller or route.
  */
 
-import { Injectable, ExecutionContext, UnauthorizedException } from '@nestjs/common';
+import { Injectable, UnauthorizedException } from '@nestjs/common';
 import { AuthGuard } from '@nestjs/passport';
 
 @Injectable()

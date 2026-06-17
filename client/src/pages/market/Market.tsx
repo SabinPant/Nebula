@@ -14,13 +14,7 @@
 import { useState, useEffect, useRef } from "react";
 import { useSearchParams } from "react-router-dom";
 import { clsx } from "clsx";
-import {
-  createChart,
-  IChartApi,
-  ISeriesApi,
-  CandlestickData,
-  Time,
-} from "lightweight-charts";
+import { createChart, IChartApi, ISeriesApi, Time } from "lightweight-charts";
 import { Card } from "../../components/ui/Card";
 import { Button } from "../../components/ui/Button";
 import { Alert } from "../../components/ui/Alert";
@@ -126,12 +120,7 @@ export function Market() {
 
   const chartContainerRef = useRef<HTMLDivElement>(null);
   const chartRef = useRef<IChartApi | null>(null);
-  const seriesRef = useRef<ISeriesApi<"Candlestick"> | null>(null);
-  const currentCandleRef = useRef<{
-    open: number;
-    high: number;
-    low: number;
-  } | null>(null);
+  const seriesRef = useRef<ISeriesApi<"Line"> | null>(null);
   const selectedSymbolRef = useRef<string | null>(null);
 
   const symbolParam = searchParams.get("symbol");
@@ -187,14 +176,7 @@ export function Market() {
       },
     });
 
-    const series = chart.addCandlestickSeries({
-      upColor: "#16a34a",
-      downColor: "#dc2626",
-      borderUpColor: "#16a34a",
-      borderDownColor: "#dc2626",
-      wickUpColor: "#16a34a",
-      wickDownColor: "#dc2626",
-    });
+    const series = chart.addLineSeries({ color: "#2563eb", lineWidth: 2 });
 
     chartRef.current = chart;
     seriesRef.current = series;
@@ -269,29 +251,7 @@ export function Market() {
 
       const time = (new Date(update.timestamp).getTime() / 1000) as Time;
       const priceInRupees = update.price / 100;
-
-      if (!currentCandleRef.current) {
-        currentCandleRef.current = {
-          open: priceInRupees,
-          high: priceInRupees,
-          low: priceInRupees,
-        };
-      } else {
-        if (priceInRupees > currentCandleRef.current.high) {
-          currentCandleRef.current.high = priceInRupees;
-        }
-        if (priceInRupees < currentCandleRef.current.low) {
-          currentCandleRef.current.low = priceInRupees;
-        }
-      }
-
-      seriesRef.current.update({
-        time,
-        open: currentCandleRef.current.open,
-        high: currentCandleRef.current.high,
-        low: currentCandleRef.current.low,
-        close: priceInRupees,
-      });
+      seriesRef.current.update({ time, value: priceInRupees });
     });
 
     return () => {
@@ -320,17 +280,12 @@ export function Market() {
 
         if (selectedSymbolRef.current !== sym) return;
 
-        currentCandleRef.current = null;
-
         if (seriesRef.current && data.length > 0) {
-          const candleData: CandlestickData[] = data.map((c: Candle) => ({
+          const lineData = data.map((c: Candle) => ({
             time: (new Date(c.timestamp).getTime() / 1000) as Time,
-            open: c.open / 100,
-            high: c.high / 100,
-            low: c.low / 100,
-            close: c.close / 100,
+            value: c.close / 100,
           }));
-          seriesRef.current.setData(candleData);
+          seriesRef.current.setData(lineData);
         }
       } catch {
         if (selectedSymbolRef.current !== sym) return;
