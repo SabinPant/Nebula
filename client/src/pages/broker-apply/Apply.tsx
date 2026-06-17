@@ -38,7 +38,24 @@ export function BrokerApply() {
     if (!fullName.trim()) errors.fullName = "Full name is required.";
     if (!email.trim()) errors.email = "Email is required.";
     if (!phone.trim()) errors.phone = "Phone number is required.";
-    if (!dateOfBirth) errors.dateOfBirth = "Date of birth is required.";
+
+    if (dateOfBirth) {
+      const dob = new Date(dateOfBirth);
+      const today = new Date();
+      today.setHours(0, 0, 0, 0);
+
+      if (isNaN(dob.getTime())) {
+        errors.dateOfBirth = "Please enter a valid date of birth.";
+      } else if (dob > today) {
+        errors.dateOfBirth = "Date of birth cannot be in the future.";
+      } else {
+        const minAgeDate = new Date();
+        minAgeDate.setFullYear(today.getFullYear() - 21);
+        if (dob > minAgeDate) {
+          errors.dateOfBirth = "You must be at least 21 years old to apply.";
+        }
+      }
+    }
     if (!documentIdNumber.trim())
       errors.documentIdNumber = "Document ID number is required.";
     if (!reason.trim() || reason.trim().length < 20)
@@ -81,18 +98,30 @@ export function BrokerApply() {
       setSuccess(true);
     } catch (err: any) {
       const code = err.response?.data?.code;
-      switch (code) {
-        case "INVALID_FILE_TYPE":
-          setError("Only JPEG, PNG, and WebP images are allowed.");
-          break;
-        case "FILE_TOO_LARGE":
-          setError("File size must be less than 5MB.");
-          break;
-        case "VALIDATION_ERROR":
-          setError("Please check your information and try again.");
-          break;
-        default:
-          setError("Something went wrong. Please try again.");
+      const message = err.response?.data?.message;
+
+      // Handle validation errors (array of strings from server)
+      if (Array.isArray(message) && message.length > 0) {
+        setError(message[0]);
+      } else {
+        switch (code) {
+          case "INVALID_FILE_TYPE":
+            setError("Only JPEG, PNG, and WebP images are allowed.");
+            break;
+          case "FILE_TOO_LARGE":
+            setError("File size must be less than 5MB.");
+            break;
+          case "DUPLICATE_APPLICATION":
+            setError(
+              "You have already submitted an application. Please wait for review.",
+            );
+            break;
+          case "VALIDATION_ERROR":
+            setError(message || "Please check your information and try again.");
+            break;
+          default:
+            setError(message || "Something went wrong. Please try again.");
+        }
       }
     } finally {
       setLoading(false);

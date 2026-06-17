@@ -8,7 +8,7 @@
  * to Date via @Type(() => Date) from class-transformer.
  */
 
-import { IsString, IsEmail, MinLength, IsDate } from 'class-validator';
+import { IsString, IsEmail, MinLength, IsDate, MaxLength, Matches } from 'class-validator';
 import { Type } from 'class-transformer';
 
 export class CreateBrokerApplicationDto {
@@ -20,7 +20,11 @@ export class CreateBrokerApplicationDto {
   email!: string;
 
   @IsString()
-  @MinLength(1, { message: 'Phone number is required' })
+  @MinLength(10, { message: 'Phone number must be at least 10 digits' })
+  @MaxLength(15, { message: 'Phone number must not exceed 15 digits' })
+  @Matches(/^\+?[0-9]{10,15}$/, {
+    message: 'Please enter a valid phone number (10-15 digits)',
+  })
   phone!: string;
 
   @Type(() => Date)

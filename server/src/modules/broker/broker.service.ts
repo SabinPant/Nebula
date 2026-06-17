@@ -88,6 +88,18 @@ export class BrokerService {
       existingUserId: existingUser?.id,
     });
 
+
+        // Send confirmation email to applicant
+    await this.emailService.sendMail(
+      dto.email,
+      'Your Nebula Broker Application Has Been Received',
+      `<p>Dear ${dto.fullName},</p>
+       <p>Thank you for applying to become a broker on Nebula.</p>
+       <p>Your application (Ref: ${application.id}) has been received and is currently under review. Our team will evaluate your submission and you will receive an email with the next steps within 3-5 business days.</p>
+       <p>If you have any questions, please contact us at admin@nebula.com.</p>
+       <p>— The Nebula Team</p>`,
+    );
+
     // TODO: Notify admin about new application (Notification module in Sprint 13)
 
     return {
