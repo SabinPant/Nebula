@@ -15,17 +15,34 @@
 import { NestFactory } from '@nestjs/core';
 import { ValidationPipe } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
+import { WinstonModule } from 'nest-winston';
+import * as winston from 'winston';
 import helmet from 'helmet';
 import { AppModule } from './app.module';
 import { GlobalExceptionFilter } from './core/filters/http-exception.filter';
 
-// cookie-parser uses CommonJS module.exports = function
-// The @types package expects ESM default import but the runtime export is a bare function
 // eslint-disable-next-line @typescript-eslint/no-require-imports
 const cookieParser = require('cookie-parser');
 
 async function bootstrap(): Promise<void> {
-  const app = await NestFactory.create(AppModule);
+  const app = await NestFactory.create(AppModule, {
+    logger: WinstonModule.createLogger({
+      level: process.env.NODE_ENV === 'production' ? 'info' : 'debug',
+      format: winston.format.combine(
+        winston.format.timestamp(),
+        process.env.NODE_ENV === 'production'
+          ? winston.format.json()
+          : winston.format.combine(
+              winston.format.colorize(),
+              winston.format.printf(({ timestamp, level, message, context }) => {
+                return `[${timestamp}] ${level} [${context || 'Nest'}] ${message}`;
+              }),
+            ),
+      ),
+      transports: [new winston.transports.Console()],
+    }),
+  });
+
   const configService = app.get(ConfigService);
 
   app.use(helmet());
