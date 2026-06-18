@@ -15,14 +15,11 @@ import { AuthController } from './auth.controller';
 import { AuthService } from './auth.service';
 import { AuthRepository } from './auth.repository';
 import { PrismaService } from '../../core/database/prisma.service';
-import { EmailService } from '../../shared/services/email.service';
-import { TokenStorage } from '../../shared/utils/token-storage';
 import { JwtStrategy } from './strategies/jwt.strategy';
 import { JwtAuthGuard } from './guards/jwt-auth.guard';
 import { RolesGuard } from './guards/roles.guard';
 import { OnboardingGuard } from './guards/onboarding.guard';
 import { GoogleStrategy } from './strategies/google.strategy';
-import { CloudinaryService } from '../../shared/services/cloudinary.service';
 
 @Module({
   imports: [
@@ -38,19 +35,16 @@ import { CloudinaryService } from '../../shared/services/cloudinary.service';
     }),
   ],
   controllers: [AuthController],
-  providers: [
+ providers: [
   AuthService,
   AuthRepository,
   PrismaService,
-  EmailService,
-  TokenStorage,
   JwtStrategy,
   JwtAuthGuard,
   RolesGuard,
   OnboardingGuard,
   GoogleStrategy,
-  CloudinaryService,
 ],
-  exports: [AuthService, JwtAuthGuard, RolesGuard, OnboardingGuard, CloudinaryService],
+  exports: [AuthService, JwtAuthGuard, RolesGuard, OnboardingGuard],
 })
 export class AuthModule {}

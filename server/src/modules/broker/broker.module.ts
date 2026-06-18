@@ -5,22 +5,16 @@ import { BrokerService } from './broker.service';
 import { BrokerRepository } from './broker.repository';
 import { AuthRepository } from '../auth/auth.repository';
 import { PrismaService } from '../../core/database/prisma.service';
-import { CloudinaryService } from '../../shared/services/cloudinary.service';
-import { EmailService } from '../../shared/services/email.service';
-import { TokenStorage } from '../../shared/utils/token-storage';
 
 @Module({
   imports: [JwtModule],
   controllers: [BrokerController],
-  providers: [
-    BrokerService,
-    BrokerRepository,
-    AuthRepository,
-    PrismaService,
-    CloudinaryService,
-    EmailService,
-    TokenStorage,
-  ],
+ providers: [
+  BrokerService,
+  BrokerRepository,
+  AuthRepository,
+  PrismaService,
+],
   exports: [BrokerService],
 })
 export class BrokerModule {}

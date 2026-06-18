@@ -20,6 +20,7 @@ import { RATE_LIMITS } from './core/config/rate-limit.config';
 import { BrokerModule } from './modules/broker/broker.module';
 import { WalletModule } from './modules/wallet/wallet.module';
 import { MarketModule } from './modules/market/market.module';
+import { SharedModule } from './shared/shared.module';
 
 @Global()
 @Module({
@@ -47,6 +48,7 @@ import { MarketModule } from './modules/market/market.module';
     BrokerModule,
     WalletModule,
     MarketModule,
+    SharedModule,
   ],
   controllers: [],
   providers: [
