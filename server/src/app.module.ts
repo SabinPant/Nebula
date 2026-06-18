@@ -21,6 +21,8 @@ import { BrokerModule } from './modules/broker/broker.module';
 import { WalletModule } from './modules/wallet/wallet.module';
 import { MarketModule } from './modules/market/market.module';
 import { SharedModule } from './shared/shared.module';
+import { HealthController } from './health.controller';
+import { PrismaService } from './core/database/prisma.service';
 
 @Global()
 @Module({
@@ -50,9 +52,10 @@ import { SharedModule } from './shared/shared.module';
     MarketModule,
     SharedModule,
   ],
-  controllers: [],
+  controllers: [HealthController],
   providers: [
     RedisClient,
+    PrismaService,
     {
       provide: 'APP_GUARD',
       useClass: ThrottlerGuard,
