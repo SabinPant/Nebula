@@ -22,7 +22,7 @@
 import type { StockConfig } from './stocks.config';
 
 const CIRCUIT_BREAKER_PERCENT = 0.1;
-const TRADING_DAY_MS = 1000 * 60 * 60 * 24; /// 24 hours — Nebula runs 24/7
+const TRADING_DAY_MS = 1000 * 60 * 1; // 1 hour — compresses a full day's movement into 1 hour
 const TICK_INTERVAL_MS = parseInt(
   process.env.PRICE_UPDATE_INTERVAL_MS || '3000',
   10,

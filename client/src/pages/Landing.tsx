@@ -339,7 +339,7 @@ export function Landing() {
           </div>
 
           {/* Nebula Index card */}
-          <div className="hidden lg:block border border-gray-200 rounded-2xl overflow-hidden bg-surface-50">
+          <div className="border border-gray-200 rounded-2xl overflow-hidden bg-surface-50">
             <div className="bg-primary-900 px-6 py-4 flex items-center justify-between">
               <span className="text-sm font-medium text-gray-300">
                 Nebula Index

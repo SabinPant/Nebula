@@ -119,13 +119,7 @@ function HelperText({ children }: { children: React.ReactNode }) {
   );
 }
 
-function UploadProgress({
-  fileName,
-  fileSize,
-}: {
-  fileName: string;
-  fileSize: number;
-}) {
+function UploadProgress({ fileSize }: { fileName: string; fileSize: number }) {
   const [dots, setDots] = useState(".");
 
   useEffect(() => {
@@ -230,7 +224,7 @@ export function BrokerApply() {
   const [loading, setLoading] = useState(false);
   const [success, setSuccess] = useState(false);
   const [warning, setWarning] = useState("");
-  const [referenceId, setReferenceId] = useState<string | null>(null);
+  const [referenceId] = useState<string | null>(null);
 
   const fileInputRef = useRef<HTMLInputElement>(null);
 
@@ -365,7 +359,6 @@ export function BrokerApply() {
       });
 
       if (data.warning) setWarning(data.warning.message);
-      // if (data.referenceId) setReferenceId(data.referenceId);
 
       setSuccess(true);
     } catch (err: any) {
