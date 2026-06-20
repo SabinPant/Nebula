@@ -32,7 +32,6 @@ interface CreateOrderData {
 }
 
 interface SettleWalletParams {
-  walletId: string;
   availableDelta: number; // Negative for BUY (deduct), positive for SELL (credit)
   reservedDelta: number; // Always negative (releases reservation)
 }
