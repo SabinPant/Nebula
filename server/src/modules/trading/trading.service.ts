@@ -57,6 +57,19 @@ export class TradingService {
       if (cached) return cached;
     }
 
+        // ── 1.5. Daily Order Cap ─────────────────────────────────────────
+    const todayKey = `ratelimit:orders:daily:${userId}`;
+    const todayCount = await this.redis.incr(todayKey);
+    if (todayCount === 1) {
+      await this.redis.expire(todayKey, 86400);
+    }
+    if (todayCount > 50) {
+      throw new BadRequestException({
+        code: ErrorCodes.RATE_LIMIT_EXCEEDED,
+        message: 'Daily order limit reached (50 orders per day)',
+      });
+    }
+
     // ── 2. Validate Stock ─────────────────────────────────────────────
     const stock = await this.tradingRepo.findStockById(dto.stockId);
     if (!stock) {

@@ -23,6 +23,7 @@ import { MarketModule } from './modules/market/market.module';
 import { SharedModule } from './shared/shared.module';
 import { HealthController } from './health.controller';
 import { PrismaService } from './core/database/prisma.service';
+import { TradingModule } from './modules/trading/trading.module';
 
 @Global()
 @Module({
@@ -50,6 +51,7 @@ import { PrismaService } from './core/database/prisma.service';
     BrokerModule,
     WalletModule,
     MarketModule,
+    TradingModule,
     SharedModule,
   ],
   controllers: [HealthController],
