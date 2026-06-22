@@ -31,6 +31,7 @@ import { Market } from "../pages/market/Market";
 import { AuthenticatedLayout } from "../components/layout/AuthenticatedLayout";
 import { useParams } from "react-router-dom";
 import { Trade } from "../pages/trader/Trade";
+import { Orders } from "../pages/trader/Orders";
 
 // ─── Guard Components ────────────────────────────────────────────────────
 
@@ -114,6 +115,7 @@ export const router = createBrowserRouter([
           { path: "/market", element: <Market /> },
           { path: "/market/:symbol", element: <OldMarketRedirect /> },
           { path: "/trade", element: <Trade /> },
+          { path: "/orders", element: <Orders /> },
         ],
       },
     ],
