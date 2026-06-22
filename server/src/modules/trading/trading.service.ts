@@ -248,7 +248,7 @@ export class TradingService {
             tx,
           );
 
-          return this.tradingRepo.findOrderById(created.id);
+                    return this.tradingRepo.findOrderById(created.id, tx);
         }
 
         // LIMIT: stays PENDING

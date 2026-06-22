@@ -56,8 +56,9 @@ export class TradingRepository {
     });
   }
 
-  async findOrderById(orderId: string) {
-    return this.prisma.order.findUnique({
+   async findOrderById(orderId: string, tx?: Prisma.TransactionClient) {
+    const client = tx ?? this.prisma;
+    return client.order.findUnique({
       where: { id: orderId },
       include: { stock: true },
     });
