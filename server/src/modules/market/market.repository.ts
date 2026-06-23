@@ -20,13 +20,14 @@ export class MarketRepository {
   async findAllStocks() {
     return this.prisma.stock.findMany({
       orderBy: { symbol: 'asc' },
-      select: {
+            select: {
         id: true,
         symbol: true,
         companyName: true,
         sector: true,
         currentPrice: true,
         previousClose: true,
+        volatility: true,
         isHalted: true,
         haltReason: true,
       },
