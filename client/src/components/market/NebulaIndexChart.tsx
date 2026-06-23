@@ -8,7 +8,7 @@
  * `formatPaise` is the single conversion boundary at display time.
  */
 
-import { useState, useEffect, useCallback, useRef } from "react";
+import { useState, useEffect, useRef } from "react";
 import {
   AreaChart,
   Area,
@@ -18,12 +18,7 @@ import {
   ReferenceLine,
   CartesianGrid,
   ResponsiveContainer,
-  TooltipProps,
 } from "recharts";
-import {
-  NameType,
-  ValueType,
-} from "recharts/types/component/DefaultTooltipContent";
 import api from "../../services/api";
 import { formatPaise } from "../../lib/utils";
 
