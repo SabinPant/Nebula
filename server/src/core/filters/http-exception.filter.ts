@@ -4,11 +4,13 @@
  * Single exception handler for the entire server.
  * Catches every unhandled error and returns a standardized response.
  *
- * Three error sources handled:
+ * Error sources handled:
  * 1. HttpException — typed errors thrown by services (code + message preserved)
  * 2. PrismaClientKnownRequestError — database constraint violations mapped to
- *    appropriate HTTP errors (e.g., unique constraint on email → EMAIL_ALREADY_EXISTS)
- * 3. Unknown errors — logged with full stack trace, returned as 500 INTERNAL_ERROR
+ *    appropriate HTTP errors (P2002 unique, P2003 foreign key, P2025 not found)
+ * 3. PrismaClientValidationError — schema validation failures at query time
+ * 4. JWT errors — expired/malformed tokens mapped to 401 UNAUTHORIZED
+ * 5. Unknown errors — logged with full stack trace, returned as 500 INTERNAL_ERROR
  *
  * Never exposes: stack traces, SQL queries, internal paths, or raw DB error details.
  *
@@ -25,7 +27,7 @@ import {
 } from '@nestjs/common';
 import { Prisma } from '@prisma/client';
 import { Request, Response } from 'express';
-import { TokenExpiredError, JsonWebTokenError } from 'jsonwebtoken';
+import { TokenExpiredError, JsonWebTokenError, NotBeforeError } from 'jsonwebtoken';
 
 @Catch()
 export class GlobalExceptionFilter implements ExceptionFilter {
@@ -48,14 +50,31 @@ export class GlobalExceptionFilter implements ExceptionFilter {
       code = prismaError.code;
     }
 
-    // ─── JWT errors (expired or malformed tokens) ──────────────────────────
+    // ─── Prisma validation errors (bad query at dev time) ──────────────────
+    else if (exception instanceof Prisma.PrismaClientValidationError) {
+      status = HttpStatus.INTERNAL_SERVER_ERROR;
+      message = 'An unexpected error occurred';
+      code = 'INTERNAL_ERROR';
+
+      this.logger.error(
+        `Prisma validation error: ${exception.message}`,
+        exception.stack,
+      );
+    }
+
+    // ─── JWT errors (expired, malformed, or not-yet-valid tokens) ──────────
     else if (
       exception instanceof TokenExpiredError ||
-      exception instanceof JsonWebTokenError
+      exception instanceof JsonWebTokenError ||
+      exception instanceof NotBeforeError
     ) {
       status = HttpStatus.UNAUTHORIZED;
       message = 'Invalid or expired token';
       code = 'UNAUTHORIZED';
+
+      this.logger.warn(
+        `JWT error [${exception.constructor.name}]: ${exception.message}`,
+      );
     }
 
     // ─── Typed HTTP exceptions thrown by services ──────────────────────────
@@ -72,6 +91,7 @@ export class GlobalExceptionFilter implements ExceptionFilter {
         code = 'UNKNOWN_ERROR';
       }
     }
+
     // ─── Unexpected errors (bugs) — log full details, return generic ───────
     else {
       status = HttpStatus.INTERNAL_SERVER_ERROR;
@@ -90,7 +110,7 @@ export class GlobalExceptionFilter implements ExceptionFilter {
         `${request.method} ${request.url} → ${status} [${code}] ${message}`,
       );
     }
-      
+
     // Clear poisoned refresh cookie on token revocation or account suspension
     // so the client doesn't keep sending a dead cookie on every request.
     if (
@@ -113,9 +133,9 @@ export class GlobalExceptionFilter implements ExceptionFilter {
   /**
    * Maps Prisma database errors to HTTP responses.
    *
-   * Only known constraint targets are mapped explicitly — unknown P2002
-   * targets fall through and become logged 500s so we catch unhandled
-   * constraints early during development without leaking schema details.
+   * Only known constraint targets are mapped explicitly — unknown targets
+   * fall through and become logged 500s so we catch unhandled constraints
+   * early without leaking schema details.
    */
   private handlePrismaError(exception: Prisma.PrismaClientKnownRequestError): {
     status: number;
@@ -141,11 +161,46 @@ export class GlobalExceptionFilter implements ExceptionFilter {
           code: 'DUPLICATE_TRANSACTION_REFERENCE',
         };
       }
+
+      if (target?.includes('phone')) {
+        return {
+          status: HttpStatus.CONFLICT,
+          message: 'An application with this phone number already exists',
+          code: 'DUPLICATE_PHONE',
+        };
+      }
+
+      if (target?.includes('brokerNumber')) {
+        return {
+          status: HttpStatus.CONFLICT,
+          message: 'This broker number is already assigned',
+          code: 'DUPLICATE_BROKER_NUMBER',
+        };
+      }
+    }
+
+    // Foreign key violation — referenced record does not exist
+    if (exception.code === 'P2003') {
+      this.logger.warn(`P2003 foreign key violation: ${exception.message}`);
+      return {
+        status: HttpStatus.BAD_REQUEST,
+        message: 'Referenced record does not exist',
+        code: 'FOREIGN_KEY_VIOLATION',
+      };
+    }
+
+    // Record not found for update/delete — concurrent modification
+    if (exception.code === 'P2025') {
+      return {
+        status: HttpStatus.NOT_FOUND,
+        message: 'The requested record was not found',
+        code: 'NOT_FOUND',
+      };
     }
 
     // Unknown Prisma error — log and return generic 500
     this.logger.error(
-      `Unhandled Prisma error: ${exception.code}`,
+      `Unhandled Prisma error [${exception.code}]: ${exception.message}`,
       exception.stack,
     );
 
@@ -156,9 +211,21 @@ export class GlobalExceptionFilter implements ExceptionFilter {
     };
   }
 
+  /**
+   * Maps HTTP status codes to their standard text names.
+   * Returns the exact HTTP status text for proper API responses.
+   */
   private getErrorName(status: number): string {
-    if (status >= 500) return 'INTERNAL_SERVER_ERROR';
-    if (status >= 400) return 'BAD_REQUEST';
-    return 'ERROR';
+    const names: Record<number, string> = {
+      400: 'BAD_REQUEST',
+      401: 'UNAUTHORIZED',
+      403: 'FORBIDDEN',
+      404: 'NOT_FOUND',
+      409: 'CONFLICT',
+      429: 'TOO_MANY_REQUESTS',
+      500: 'INTERNAL_SERVER_ERROR',
+      503: 'SERVICE_UNAVAILABLE',
+    };
+    return names[status] || 'ERROR';
   }
 }
