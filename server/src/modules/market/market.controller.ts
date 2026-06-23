@@ -33,6 +33,16 @@ export class MarketController {
     return this.marketService.getMarketStatus();
   }
 
+    /**
+   * Returns the current Nebula Index — average of all stock prices.
+   * Public endpoint, no auth required.
+   */
+  @Get('index')
+  @HttpCode(HttpStatus.OK)
+  getIndex() {
+    return this.marketService.getIndex();
+  }
+
   @Get('stocks')
   @HttpCode(HttpStatus.OK)
   getStocks() {
