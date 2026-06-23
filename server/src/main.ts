@@ -10,6 +10,12 @@
  *
  * The global exception filter is registered here so every thrown HttpException
  * is caught and returned in the standardized { statusCode, error, message, code, timestamp } shape.
+ *
+ * Graceful shutdown handles SIGTERM/SIGINT for zero-downtime deployments
+ * on Render, AWS ECS, or any container orchestration platform.
+ *
+ * Trust proxy is enabled so req.ip returns the real client IP behind
+ * reverse proxies (Render LB, AWS ALB, Nginx, CloudFront).
  */
 
 import { NestFactory } from '@nestjs/core';
@@ -45,6 +51,11 @@ async function bootstrap(): Promise<void> {
 
   const configService = app.get(ConfigService);
 
+  // Trust the first proxy for correct client IP behind reverse proxies
+  // Works with: Render LB, AWS ALB/NLB, Nginx, CloudFront, Cloudflare
+  const expressApp = app.getHttpAdapter().getInstance();
+  expressApp.set('trust proxy', 1);
+
   app.use(helmet());
   app.use(cookieParser());
 
@@ -70,11 +81,21 @@ async function bootstrap(): Promise<void> {
 
   app.useGlobalFilters(new GlobalExceptionFilter());
 
-  app.setGlobalPrefix('api/v1');
+  app.setGlobalPrefix('/api/v1');
 
   const port = process.env.PORT || configService.get<number>('APP_PORT') || 3001;
   await app.listen(port);
   console.log(`Nebula server running on port ${port}`);
+
+  // Graceful shutdown for zero-downtime deployments
+  const shutdown = async (signal: string) => {
+    console.log(`${signal} received — closing gracefully`);
+    await app.close();
+    process.exit(0);
+  };
+
+  process.on('SIGTERM', () => shutdown('SIGTERM'));
+  process.on('SIGINT', () => shutdown('SIGINT'));
 }
 
 bootstrap();
