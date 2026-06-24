@@ -33,6 +33,7 @@ import { ErrorCodes } from '../../shared/constants/errors';
 import { OrderStatus, OrderType, OrderStyle, TransactionType } from '@prisma/client';
 import type { CreateOrderDto } from './dto/create-order.dto';
 import type Redis from 'ioredis';
+import { buildPageResponse } from '../../shared/utils/paginate';
 
 @Injectable()
 export class TradingService {
@@ -337,28 +338,23 @@ export class TradingService {
     });
   }
 
-  /**
-   * Returns cursor-paginated order history.
+    /**
+   * Returns page-based paginated order history for a user.
+   *
+   * @param userId - The authenticated user's ID
+   * @param page - Page number (1-indexed, default 1)
+   * @param limit - Items per page (default 10, max 50)
    */
-  async getOrders(userId: string, cursor?: string, limit?: number) {
-    const orders = await this.tradingRepo.findOrdersByUserId(
-      userId,
-      cursor,
-      limit ?? 20,
-    );
+  async getOrders(userId: string, page: number = 1, limit: number = 10) {
+    const cappedLimit = Math.min(Math.max(limit, 1), 50);
+    const skip = (page - 1) * cappedLimit;
 
-    const cappedLimit = Math.min(limit ?? 20, 50);
-    const hasMore = orders.length > cappedLimit;
-    const data = hasMore ? orders.slice(0, -1) : orders;
+    const [orders, totalCount] = await Promise.all([
+      this.tradingRepo.findOrdersByUserId(userId, skip, cappedLimit),
+      this.tradingRepo.countOrdersByUserId(userId),
+    ]);
 
-    return {
-      data,
-      pagination: {
-        nextCursor: hasMore ? data[data.length - 1]?.id ?? null : null,
-        hasMore,
-        limit: cappedLimit,
-      },
-    };
+    return buildPageResponse(orders, totalCount, page, cappedLimit);
   }
 
   /**

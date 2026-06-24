@@ -1,7 +1,7 @@
 /**
  * Orders Page
  *
- * Order history with cursor pagination and cancel functionality.
+ * Order history with page-based pagination and cancel functionality.
  * Shows all orders (BUY/SELL, MARKET/LIMIT) with status badges.
  * Cancel button only appears for PENDING and PARTIALLY_FILLED orders.
  */
@@ -29,11 +29,14 @@ interface Order {
   };
 }
 
-interface Pagination {
-  nextCursor: string | null;
-  hasMore: boolean;
+interface PaginationMeta {
+  page: number;
+  totalPages: number;
+  totalCount: number;
   limit: number;
 }
+
+const ORDERS_PER_PAGE = 10;
 
 const STATUS_STYLES: Record<string, string> = {
   PENDING: "bg-yellow-100 text-yellow-800",
@@ -54,45 +57,32 @@ function formatDate(dateString: string): string {
 
 export function Orders() {
   const [orders, setOrders] = useState<Order[]>([]);
-  const [pagination, setPagination] = useState<Pagination>({
-    nextCursor: null,
-    hasMore: false,
-    limit: 20,
-  });
+  const [pagination, setPagination] = useState<PaginationMeta | null>(null);
   const [loading, setLoading] = useState(true);
-  const [loadingMore, setLoadingMore] = useState(false);
+  const [loadingPage, setLoadingPage] = useState(false);
   const [cancelling, setCancelling] = useState<string | null>(null);
   const [error, setError] = useState("");
 
   useEffect(() => {
-    fetchOrders();
+    fetchOrders(1);
   }, []);
 
-  async function fetchOrders(cursor?: string) {
-    const isInitial = !cursor;
+  async function fetchOrders(page: number) {
+    if (page === 1) setLoading(true);
+    else setLoadingPage(true);
 
-    if (isInitial) setLoading(true);
-    else setLoadingMore(true);
-
+    setError("");
     try {
-      const params = new URLSearchParams();
-      if (cursor) params.set("cursor", cursor);
-      params.set("limit", "20");
-
-      const { data } = await api.get(`/orders?${params.toString()}`);
-
-      if (isInitial) {
-        setOrders(data.data);
-      } else {
-        setOrders((prev) => [...prev, ...data.data]);
-      }
+      const { data } = await api.get(
+        `/orders?page=${page}&limit=${ORDERS_PER_PAGE}`,
+      );
+      setOrders(data.data);
       setPagination(data.pagination);
-      setError("");
     } catch {
       setError("Failed to load orders.");
     } finally {
       setLoading(false);
-      setLoadingMore(false);
+      setLoadingPage(false);
     }
   }
 
@@ -101,8 +91,6 @@ export function Orders() {
     setError("");
     try {
       await api.patch(`/orders/${orderId}/cancel`);
-
-      // Update local state — mark as CANCELLED
       setOrders((prev) =>
         prev.map((o) => (o.id === orderId ? { ...o, status: "CANCELLED" } : o)),
       );
@@ -125,7 +113,15 @@ export function Orders() {
   // ─── Render ──────────────────────────────────────────────────────────
   return (
     <div className="max-w-5xl mx-auto px-4 sm:px-6 lg:px-8 py-8 space-y-6">
-      <h1 className="text-2xl font-bold text-gray-900">Orders</h1>
+      <div className="flex items-center justify-between">
+        <h1 className="text-2xl font-bold text-gray-900">Orders</h1>
+        {pagination && (
+          <p className="text-sm text-gray-400">
+            {pagination.totalCount} order
+            {pagination.totalCount !== 1 ? "s" : ""}
+          </p>
+        )}
+      </div>
 
       {error && <Alert variant="error">{error}</Alert>}
 
@@ -140,15 +136,14 @@ export function Orders() {
         </Card>
       ) : (
         <>
-          <div className="flex items-center justify-between">
-            <p className="text-sm text-gray-500">
-              Showing {orders.length} order{orders.length !== 1 ? "s" : ""}
-            </p>
-          </div>
-
           {/* Desktop Table */}
           <div className="hidden md:block">
-            <Card className="overflow-hidden">
+            <Card className="overflow-hidden relative">
+              {loadingPage && (
+                <div className="absolute inset-0 bg-white/50 z-10 flex items-center justify-center">
+                  <div className="w-6 h-6 border-2 border-primary-200 border-t-primary-700 rounded-full animate-spin" />
+                </div>
+              )}
               <div className="overflow-x-auto">
                 <table className="w-full text-sm">
                   <thead>
@@ -251,7 +246,12 @@ export function Orders() {
           </div>
 
           {/* Mobile Cards */}
-          <div className="md:hidden space-y-3">
+          <div className="md:hidden space-y-3 relative">
+            {loadingPage && (
+              <div className="absolute inset-0 bg-white/50 z-10 flex items-center justify-center">
+                <div className="w-6 h-6 border-2 border-primary-200 border-t-primary-700 rounded-full animate-spin" />
+              </div>
+            )}
             {orders.map((order) => (
               <Card key={order.id}>
                 <div className="space-y-2">
@@ -320,22 +320,33 @@ export function Orders() {
             ))}
           </div>
 
-          {/* Load More — capped at 100 */}
-          {pagination.hasMore && orders.length < 100 && (
-            <div className="text-center">
-              <Button
-                variant="secondary"
-                onClick={() => fetchOrders(pagination.nextCursor!)}
-                disabled={loadingMore}
-              >
-                {loadingMore ? "Loading..." : "Load More"}
-              </Button>
+          {/* Pagination Controls */}
+          {pagination && pagination.totalPages > 1 && (
+            <div className="flex items-center justify-between">
+              <p className="text-xs text-gray-400">
+                Page {pagination.page} of {pagination.totalPages}
+              </p>
+              <div className="flex gap-1.5">
+                <Button
+                  variant="secondary"
+                  size="sm"
+                  onClick={() => fetchOrders(pagination.page - 1)}
+                  disabled={pagination.page <= 1 || loadingPage}
+                >
+                  Previous
+                </Button>
+                <Button
+                  variant="secondary"
+                  size="sm"
+                  onClick={() => fetchOrders(pagination.page + 1)}
+                  disabled={
+                    pagination.page >= pagination.totalPages || loadingPage
+                  }
+                >
+                  Next
+                </Button>
+              </div>
             </div>
-          )}
-          {pagination.hasMore && orders.length >= 100 && (
-            <p className="text-center text-sm text-gray-400">
-              Showing latest 100 orders. More filters coming soon.
-            </p>
           )}
         </>
       )}

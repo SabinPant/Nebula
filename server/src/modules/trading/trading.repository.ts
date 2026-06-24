@@ -64,15 +64,30 @@ export class TradingRepository {
     });
   }
 
-  async findOrdersByUserId(userId: string, cursor?: string, limit: number = 20) {
-    const take = Math.min(limit, 50) + 1;
-
+    /**
+   * Returns page-based paginated orders for a user.
+   *
+   * @param userId - The user's ID
+   * @param skip - Number of records to skip (page - 1) * limit
+   * @param limit - Number of orders per page (default 10, max 50)
+   */
+  async findOrdersByUserId(userId: string, skip: number = 0, limit: number = 10) {
     return this.prisma.order.findMany({
       where: { userId },
-      orderBy: { createdAt: 'desc' },
-      take,
-      ...(cursor ? { cursor: { id: cursor }, skip: 1 } : {}),
+      orderBy: { id: 'desc' },
+      skip,
+      take: Math.min(limit, 50),
       include: { stock: { select: { symbol: true, companyName: true } } },
+    });
+  }
+
+  /**
+   * Returns the total number of orders for a user.
+   * Used for page-based pagination to calculate totalPages.
+   */
+  async countOrdersByUserId(userId: string): Promise<number> {
+    return this.prisma.order.count({
+      where: { userId },
     });
   }
 

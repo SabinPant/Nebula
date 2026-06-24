@@ -47,18 +47,22 @@ export class TradingController {
     return this.tradingService.placeOrder(userId, dto, idempotencyKey);
   }
 
+    /**
+   * Get page-based paginated order history for the authenticated user.
+   */
   @Get()
   async getOrders(
     @Req() req: Request,
-    @Query('cursor') cursor?: string,
+    @Query('page') page?: string,
     @Query('limit') limit?: string,
   ) {
     const userId = (req.user as { id: string }).id;
-    const parsedLimit = limit ? parseInt(limit, 10) : 20;
+    const parsedPage = page ? parseInt(page, 10) : 1;
+    const parsedLimit = limit ? parseInt(limit, 10) : 10;
     return this.tradingService.getOrders(
       userId,
-      cursor,
-      isNaN(parsedLimit) ? 20 : parsedLimit,
+      isNaN(parsedPage) ? 1 : parsedPage,
+      isNaN(parsedLimit) ? 10 : parsedLimit,
     );
   }
 

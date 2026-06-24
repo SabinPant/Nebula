@@ -51,29 +51,30 @@ export class WalletRepository {
     });
   }
 
-  /**
-   * Returns cursor-paginated transactions for a wallet.
+     /**
+   * Returns paginated transactions for a wallet using skip/take (page-based).
    *
    * @param walletId - The wallet's ID
-   * @param cursor - Optional cursor (transaction ID) for pagination
-   * @param limit - Number of transactions to return (default 20, max 50)
+   * @param skip - Number of records to skip (page - 1) * limit
+   * @param limit - Number of transactions per page (default 20, max 50)
    */
-  async findTransactions(walletId: string, cursor?: string, limit: number = 20) {
-    const take = Math.min(limit, 50) + 1; // Fetch one extra to determine hasMore
-
-    const transactions = await this.prisma.transaction.findMany({
+  async findTransactions(walletId: string, skip: number = 0, limit: number = 20) {
+    return this.prisma.transaction.findMany({
       where: { walletId },
-      orderBy: { createdAt: 'desc' },
-      take,
-      ...(cursor
-        ? {
-            cursor: { id: cursor },
-            skip: 1, // Skip the cursor itself
-          }
-        : {}),
+      orderBy: { id: 'desc' },
+      skip,
+      take: Math.min(limit, 50),
     });
+  }
 
-    return transactions;
+  /**
+   * Returns the total number of transactions for a wallet.
+   * Used for page-based pagination to calculate totalPages.
+   */
+  async countTransactions(walletId: string): Promise<number> {
+    return this.prisma.transaction.count({
+      where: { walletId },
+    });
   }
 
   /**
