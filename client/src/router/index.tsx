@@ -30,6 +30,13 @@ import { TopupInfo } from "../pages/trader/TopupInfo";
 import { Market } from "../pages/market/Market";
 import { AuthenticatedLayout } from "../components/layout/AuthenticatedLayout";
 import { useParams } from "react-router-dom";
+import { Trade } from "../pages/trader/Trade";
+import { Orders } from "../pages/trader/Orders";
+import { About } from "../pages/About";
+import { Contact } from "../pages/Contact";
+import { Blog } from "../pages/Blog";
+import { PublicLayout } from "../components/layout/PublicLayout";
+import { Learn } from "../pages/Learn";
 
 // ─── Guard Components ────────────────────────────────────────────────────
 
@@ -94,6 +101,17 @@ export const router = createBrowserRouter([
     ],
   },
 
+  // Public pages with Navbar & Footer
+  {
+    element: <PublicLayout />,
+    children: [
+      { path: "/about", element: <About /> },
+      { path: "/contact", element: <Contact /> },
+      { path: "/blog", element: <Blog /> },
+      { path: "/learn", element: <Learn /> },
+    ],
+  },
+
   // Auth required — any authenticated user
   {
     element: <AuthGuard />,
@@ -112,6 +130,8 @@ export const router = createBrowserRouter([
           { path: "/wallet/topup-info", element: <TopupInfo /> },
           { path: "/market", element: <Market /> },
           { path: "/market/:symbol", element: <OldMarketRedirect /> },
+          { path: "/trade", element: <Trade /> },
+          { path: "/orders", element: <Orders /> },
         ],
       },
     ],

@@ -34,21 +34,22 @@ export class WalletController {
     return this.walletService.getWallet(user.id);
   }
 
-  /**
-   * Returns cursor-paginated transaction history for the authenticated user.
+    /**
+   * Returns page-based paginated transaction history for the authenticated user.
    */
   @Get('transactions')
   async getTransactions(
     @Req() req: Request,
-    @Query('cursor') cursor?: string,
+    @Query('page') page?: string,
     @Query('limit') limit?: string,
   ) {
     const user = req.user as { id: string };
-    const parsedLimit = limit ? parseInt(limit, 10) : 20;
+    const parsedPage = page ? parseInt(page, 10) : 1;
+    const parsedLimit = limit ? parseInt(limit, 10) : 10;
     return this.walletService.getTransactions(
       user.id,
-      cursor,
-      isNaN(parsedLimit) ? 20 : parsedLimit,
+      isNaN(parsedPage) ? 1 : parsedPage,
+      isNaN(parsedLimit) ? 10 : parsedLimit,
     );
   }
 

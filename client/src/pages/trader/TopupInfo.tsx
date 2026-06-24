@@ -13,6 +13,7 @@ import { Card } from "../../components/ui/Card";
 import { Alert } from "../../components/ui/Alert";
 import api from "../../services/api";
 import { formatPaise } from "../../lib/utils";
+import { Button } from "../../components/ui/Button";
 
 interface BrokerInfo {
   displayName: string;
@@ -81,7 +82,7 @@ export function TopupInfo() {
       )}
 
       {/* Broker contact card */}
-      {data.broker && (
+      {data.broker ? (
         <Card title="Your Broker">
           <div className="space-y-2">
             <div>
@@ -106,9 +107,28 @@ export function TopupInfo() {
             {data.broker.phone && (
               <div>
                 <p className="text-sm text-gray-500">Phone</p>
-                <p className="text-gray-900">{data.broker.phone}</p>
+                <a
+                  href={`tel:${data.broker.phone.replace(/[^+\d]/g, "")}`}
+                  className="text-primary-600 hover:text-primary-700"
+                >
+                  {data.broker.phone}
+                </a>
               </div>
             )}
+          </div>
+        </Card>
+      ) : (
+        <Card>
+          <div className="text-center py-6">
+            <p className="text-gray-500">No broker assigned.</p>
+            <p className="text-sm text-gray-400 mt-1">
+              Complete onboarding to select a broker and enable top-ups.
+            </p>
+            <Link to="/onboarding" className="inline-block mt-3">
+              <Button variant="primary" size="sm">
+                Go to Onboarding
+              </Button>
+            </Link>
           </div>
         </Card>
       )}
@@ -116,33 +136,75 @@ export function TopupInfo() {
       {/* Weekly cap status */}
       <Card title="Weekly Top-Up Status">
         <div className="space-y-3">
+          {/* Progress bar */}
+          {data.weeklyCapPaise > 0 && (
+            <div>
+              <div className="flex justify-between text-sm mb-1">
+                <span className="text-gray-500">Used</span>
+                <span className="font-medium text-gray-900">
+                  {formatPaise(data.weeklyUsedPaise)} /{" "}
+                  {formatPaise(data.weeklyCapPaise)}
+                </span>
+              </div>
+              <div className="w-full bg-gray-200 rounded-full h-2.5">
+                <div
+                  className={`h-2.5 rounded-full transition-all ${
+                    data.weeklyRemainingPaise === 0
+                      ? "bg-red-500"
+                      : data.weeklyRemainingPaise < data.weeklyCapPaise * 0.2
+                        ? "bg-yellow-500"
+                        : "bg-primary-600"
+                  }`}
+                  style={{
+                    width: `${Math.min(
+                      (data.weeklyUsedPaise / data.weeklyCapPaise) * 100,
+                      100,
+                    )}%`,
+                  }}
+                />
+              </div>
+            </div>
+          )}
+
           <div className="flex justify-between">
-            <span className="text-sm text-gray-500">Weekly Cap</span>
-            <span className="text-sm font-medium text-gray-900">
-              {formatPaise(data.weeklyCapPaise)}
-            </span>
-          </div>
-          <div className="flex justify-between">
-            <span className="text-sm text-gray-500">Used This Week</span>
-            <span className="text-sm font-medium text-gray-900">
-              {formatPaise(data.weeklyUsedPaise)}
-            </span>
-          </div>
-          <div className="flex justify-between border-t border-gray-200 pt-2">
-            <span className="text-sm font-medium text-gray-700">Remaining</span>
-            <span className="text-sm font-bold text-primary-700">
+            <span className="text-sm text-gray-500">Remaining</span>
+            <span
+              className={`text-sm font-bold ${
+                data.weeklyRemainingPaise === 0
+                  ? "text-red-600"
+                  : "text-primary-700"
+              }`}
+            >
               {formatPaise(data.weeklyRemainingPaise)}
             </span>
           </div>
         </div>
+
+        {/* Zero remaining warning */}
+        {data.weeklyRemainingPaise === 0 && (
+          <div className="mt-3">
+            <Alert variant="warning">
+              Weekly top-up cap reached. Top-ups will be blocked until next
+              Monday. Contact your broker or admin@nebula.com for an override.
+            </Alert>
+          </div>
+        )}
+
+        {/* Low remaining warning */}
+        {data.weeklyRemainingPaise > 0 &&
+          data.weeklyRemainingPaise < data.weeklyCapPaise * 0.1 && (
+            <div className="mt-3">
+              <Alert variant="info">
+                Only {formatPaise(data.weeklyRemainingPaise)} remaining this
+                week.
+              </Alert>
+            </div>
+          )}
       </Card>
 
       {/* Instructions */}
-      <Card>
+      <Card title="How to Add Collateral">
         <div className="text-sm text-gray-600 space-y-2">
-          <p>
-            <strong>How to add collateral:</strong>
-          </p>
           <ol className="list-decimal list-inside space-y-1">
             <li>Contact your broker using the details above.</li>
             <li>
@@ -162,9 +224,9 @@ export function TopupInfo() {
 
       <div className="text-center">
         <Link to="/wallet">
-          <span className="text-sm text-primary-600 hover:text-primary-700">
+          <Button variant="secondary" size="sm">
             Back to Wallet
-          </span>
+          </Button>
         </Link>
       </div>
     </div>

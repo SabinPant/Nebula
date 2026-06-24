@@ -16,7 +16,7 @@ import {
 } from '@nestjs/common';
 import { WalletRepository } from './wallet.repository';
 import { formatCurrency } from '../../shared/utils/currency';
-import { buildCursorResponse } from '../../shared/utils/paginate';
+import { buildPageResponse  } from '../../shared/utils/paginate';
 import { MARKET_CONSTANTS } from '../../shared/constants/market.constants';
 
 @Injectable()
@@ -44,10 +44,14 @@ export class WalletService {
     };
   }
 
-  /**
-   * Returns cursor-paginated transaction history for the authenticated user's wallet.
+    /**
+   * Returns page-based paginated transaction history.
+   *
+   * @param userId - The authenticated user's ID
+   * @param page - Page number (1-indexed, default 1)
+   * @param limit - Items per page (default 10, max 50)
    */
-  async getTransactions(userId: string, cursor?: string, limit: number = 20) {
+  async getTransactions(userId: string, page: number = 1, limit: number = 10) {
     const wallet = await this.walletRepository.findWalletByUserId(userId);
 
     if (!wallet) {
@@ -58,13 +62,14 @@ export class WalletService {
     }
 
     const cappedLimit = Math.min(Math.max(limit, 1), 50);
-    const transactions = await this.walletRepository.findTransactions(
-      wallet.id,
-      cursor,
-      cappedLimit,
-    );
+    const skip = (page - 1) * cappedLimit;
 
-    return buildCursorResponse(transactions, cappedLimit, (tx) => tx.id);
+    const [transactions, totalCount] = await Promise.all([
+      this.walletRepository.findTransactions(wallet.id, skip, cappedLimit),
+      this.walletRepository.countTransactions(wallet.id),
+    ]);
+
+    return buildPageResponse(transactions, totalCount, page, cappedLimit);
   }
 
   /**

@@ -103,6 +103,40 @@ async getStockHistory(
     };
   }
 
+    /**
+   * Returns the current Nebula Index (average of all stock prices).
+   * All values in integer paise. Client only displays — zero computation.
+   */
+  async getIndex() {
+    const stocks = await this.marketRepository.findAllStocks();
+
+    if (!stocks.length) {
+      return {
+        value: 0,
+        change: 0,
+        changePercent: 0,
+        isUp: false,
+      };
+    }
+
+    const totalCurrent = stocks.reduce((sum, s) => sum + s.currentPrice, 0);
+    const totalPrevious = stocks.reduce((sum, s) => sum + s.previousClose, 0);
+
+    const value = Math.round(totalCurrent / stocks.length);
+    const previousValue = Math.round(totalPrevious / stocks.length);
+    const change = value - previousValue;
+    const changePercent = previousValue > 0
+      ? parseFloat(((change / previousValue) * 100).toFixed(2))
+      : 0;
+
+    return {
+      value,
+      change,
+      changePercent,
+      isUp: change >= 0,
+    };
+  }
+
   /**
    * Returns the user's watchlist with current stock prices.
    */
