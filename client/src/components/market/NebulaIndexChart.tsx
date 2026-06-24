@@ -260,6 +260,7 @@ export function NebulaIndexChart({
   const [indexChangePercent, setIndexChangePercent] = useState<number>(0);
   const [isUp, setIsUp] = useState<boolean>(true);
   const [loadState, setLoadState] = useState<LoadState>("loading");
+  const [engineOnline, setEngineOnline] = useState(true);
   const historyFetched = useRef(false);
 
   // ── Fetch history + initial index on mount ─────────────────────────────────
@@ -317,9 +318,10 @@ export function NebulaIndexChart({
 
     async function poll() {
       try {
-        const [stocksRes, indexRes] = await Promise.all([
+        const [stocksRes, indexRes, healthRes] = await Promise.all([
           api.get("/market/stocks"),
           api.get("/market/index"),
+          api.get("/health"),
         ]);
 
         if (!mounted) return;
@@ -331,6 +333,11 @@ export function NebulaIndexChart({
           setIndexChangePercent(indexRes.data.changePercent);
           setIsUp(indexRes.data.isUp);
           setLoadState("ready");
+        }
+
+        // Engine status from server health check
+        if (healthRes.data) {
+          setEngineOnline(healthRes.data.engine === "up");
         }
 
         // Chart data point from stocks
@@ -426,12 +433,12 @@ export function NebulaIndexChart({
         }}
       >
         <div className="absolute top-3 right-3 z-10 flex items-center gap-1.5 bg-slate-50 border border-slate-200 rounded-full px-2 py-0.5">
-          <LiveDot color={chartColor} />
+          <LiveDot color={engineOnline ? chartColor : "#94a3b8"} />
           <span
             className="text-xs font-mono font-medium tracking-wider"
-            style={{ color: chartColor }}
+            style={{ color: engineOnline ? chartColor : "#94a3b8" }}
           >
-            LIVE
+            {engineOnline ? "LIVE" : "OFFLINE"}
           </span>
         </div>
 
@@ -570,7 +577,7 @@ export function NebulaIndexChart({
           <div className="flex flex-col items-end gap-2">
             <MiniSparkline data={data} color={chartColor} />
             <div className="flex items-center gap-1.5">
-              <LiveDot color={chartColor} />
+              <LiveDot color={engineOnline ? chartColor : "#94a3b8"} />
             </div>
           </div>
         </div>
