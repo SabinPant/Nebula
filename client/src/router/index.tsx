@@ -32,6 +32,11 @@ import { AuthenticatedLayout } from "../components/layout/AuthenticatedLayout";
 import { useParams } from "react-router-dom";
 import { Trade } from "../pages/trader/Trade";
 import { Orders } from "../pages/trader/Orders";
+import { About } from "../pages/About";
+import { Contact } from "../pages/Contact";
+import { Blog } from "../pages/Blog";
+import { PublicLayout } from "../components/layout/PublicLayout";
+import { Learn } from "../pages/Learn";
 
 // ─── Guard Components ────────────────────────────────────────────────────
 
@@ -93,6 +98,17 @@ export const router = createBrowserRouter([
       { path: "/verify-email", element: <VerifyEmail /> },
       { path: "/forgot-password", element: <ForgotPassword /> },
       { path: "/reset-password", element: <ResetPassword /> },
+    ],
+  },
+
+  // Public pages with Navbar & Footer
+  {
+    element: <PublicLayout />,
+    children: [
+      { path: "/about", element: <About /> },
+      { path: "/contact", element: <Contact /> },
+      { path: "/blog", element: <Blog /> },
+      { path: "/learn", element: <Learn /> },
     ],
   },
 

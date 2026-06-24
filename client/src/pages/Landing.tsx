@@ -6,32 +6,14 @@
  * → How It Works → User Roles → CTA Banner → Footer.
  */
 
-import { useState, useEffect, useRef } from "react";
+import { useState, useEffect } from "react";
 import { Link } from "react-router-dom";
-import {
-  createChart,
-  IChartApi,
-  ISeriesApi,
-  Time,
-  ColorType,
-} from "lightweight-charts";
 import { Button } from "../components/ui/Button";
 import api from "../services/api";
 import { formatPaise } from "../lib/utils";
-
-// ── Fallback data (Used if API is down) ──────────────────────────────────
-const FALLBACK_STOCKS = [
-  { symbol: "NABIL", currentPrice: 48500, previousClose: 47317 },
-  { symbol: "NICA", currentPrice: 62000, previousClose: 62753 },
-  { symbol: "GBIME", currentPrice: 31200, previousClose: 29489 },
-  { symbol: "NTC", currentPrice: 92500, previousClose: 89718 },
-  { symbol: "SHIVM", currentPrice: 54000, previousClose: 54408 },
-  { symbol: "HDL", currentPrice: 315000, previousClose: 281250 },
-  { symbol: "CHCL", currentPrice: 78500, previousClose: 80348 },
-  { symbol: "UPPER", currentPrice: 38500, previousClose: 37782 },
-  { symbol: "NLIC", currentPrice: 125000, previousClose: 115313 },
-  { symbol: "SCB", currentPrice: 72000, previousClose: 72361 },
-];
+import { Navbar } from "../components/layout/Navbar";
+import { Footer } from "../components/layout/Footer";
+import { NebulaIndexChart } from "../components/market/NebulaIndexChart";
 
 const features = [
   {
@@ -96,177 +78,29 @@ const roles = [
 ];
 
 export function Landing() {
-  const [stocks, setStocks] = useState(FALLBACK_STOCKS);
+  // Ticker data
+  const [tickerStocks, setTickerStocks] = useState<any[]>([]);
 
-  const chartContainerRef = useRef<HTMLDivElement>(null);
-  const chartRef = useRef<IChartApi | null>(null);
-  const seriesRef = useRef<ISeriesApi<"Line"> | null>(null);
-
-  // ── 1. Fetch data & Update Chart (Polling) ───────────────────────────
   useEffect(() => {
-    let mounted = true;
-
-    // Seed the chart with fallback data immediately so it's never blank
-    const seedFallback = () => {
-      if (!seriesRef.current) return;
-      const now = Math.floor(Date.now() / 1000);
-      const avgRupees =
-        FALLBACK_STOCKS.reduce((acc, s) => acc + s.currentPrice, 0) /
-        FALLBACK_STOCKS.length /
-        100;
-      // Build 30 synthetic historical points spaced 1 minute apart
-      const points = Array.from({ length: 30 }, (_, i) => ({
-        time: (now - (29 - i) * 60) as Time,
-        value: avgRupees * (1 + (Math.random() - 0.5) * 0.002),
-      }));
-      seriesRef.current.setData(points);
-    };
-
-    const fetchHistory = async () => {
+    async function fetchTicker() {
       try {
-        const [historyRes, stocksRes] = await Promise.all([
-          api.get("/market/index-history?interval=1m&limit=30"),
-          api.get("/market/stocks"),
-        ]);
-        if (!mounted) return;
-
-        const indexData: { time: number; value: number }[] =
-          historyRes.data ?? [];
-        const liveStocks: any[] = stocksRes.data ?? [];
-
-        if (liveStocks.length) setStocks(liveStocks);
-
-        if (indexData.length && seriesRef.current) {
-          seriesRef.current.setData(
-            indexData.map((d) => ({ time: d.time as Time, value: d.value })),
-          );
-        }
-      } catch (err) {
-        console.error("Failed to fetch market history, keeping fallback.", err);
-      }
-    };
-
-    const fetchMarketData = async () => {
-      try {
-        // Safe to call without auth on public endpoint
         const { data } = await api.get("/market/stocks");
-        if (!mounted) return;
-
-        setStocks(data);
-        updateChart(data);
-      } catch (err) {
-        console.error("Failed to fetch market data, using fallback.", err);
-        if (mounted) {
-          updateChart(FALLBACK_STOCKS);
-        }
-      }
-    };
-
-    const updateChart = (stockData: any[]) => {
-      if (!seriesRef.current) return;
-      const avgRupees =
-        stockData.reduce((acc, s) => acc + s.currentPrice, 0) /
-        stockData.length /
-        100;
-      const now = Math.floor(Date.now() / 1000) as Time;
-      seriesRef.current.update({ time: now, value: avgRupees });
-    };
-
-    // Show fallback immediately, then replace with real history
-    seedFallback();
-    fetchHistory();
-
-    // Poll every 3 seconds to match the GBM engine's tick interval
-    const interval = setInterval(() => {
-      fetchMarketData().catch(() => {});
-    }, 3000);
-
-    return () => {
-      mounted = false;
-      clearInterval(interval);
-    };
+        setTickerStocks(data);
+      } catch {}
+    }
+    fetchTicker();
+    const interval = setInterval(fetchTicker, 10000);
+    return () => clearInterval(interval);
   }, []);
 
-  // ── 2. Initialize Lightweight Chart ────────────────────────────────────
-  useEffect(() => {
-    if (!chartContainerRef.current) return;
-    if (chartRef.current) return;
-
-    const chart = createChart(chartContainerRef.current, {
-      height: 120,
-      layout: {
-        background: { type: ColorType.Solid, color: "transparent" },
-        textColor: "transparent",
-      },
-      grid: {
-        vertLines: { visible: false },
-        horzLines: { visible: false },
-      },
-      timeScale: { visible: false },
-      rightPriceScale: { visible: false },
-      leftPriceScale: { visible: false },
-      handleScroll: false,
-      handleScale: false,
-    });
-
-    const series = chart.addLineSeries({
-      color: "#16a34a",
-      lineWidth: 2,
-      crosshairMarkerVisible: false,
-      priceLineVisible: false,
-      lastValueVisible: false,
-    });
-
-    chartRef.current = chart;
-    seriesRef.current = series;
-
-    return () => {
-      chart.remove();
-      chartRef.current = null;
-      seriesRef.current = null;
-    };
-  }, []);
-
-  // ── Derived Data for UI ─────────────────────────────────────────────────
-  // Duplicate exactly once so the seamless CSS loop covers a full 2× set
-  const singleStocks = stocks.length ? stocks : FALLBACK_STOCKS;
-  const doubledStocks = [...singleStocks, ...singleStocks];
-
-  // Nebula Index Calculations
-  const currentIndexPaise =
-    stocks.reduce((acc, s) => acc + s.currentPrice, 0) / stocks.length;
-  const prevIndexPaise =
-    stocks.reduce((acc, s) => acc + s.previousClose, 0) / stocks.length;
-  const indexChangePaise = currentIndexPaise - prevIndexPaise;
-  const indexChangePercent = (
-    (indexChangePaise / prevIndexPaise) *
-    100
-  ).toFixed(2);
-  const isIndexUp = indexChangePaise >= 0;
+  const displayStocks = tickerStocks.length ? tickerStocks : [];
+  const doubledStocks = displayStocks.length
+    ? [...displayStocks, ...displayStocks]
+    : [];
 
   return (
     <div className="min-h-screen bg-white">
-      {/* ── Navbar ──────────────────────────────────────────────────── */}
-      <nav className="border-b border-gray-200 bg-white">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 h-16 flex items-center justify-between">
-          <Link
-            to="/"
-            className="text-2xl font-bold text-primary-900 tracking-tight"
-          >
-            Nebula
-          </Link>
-          <div className="flex items-center space-x-3">
-            <Link to="/login">
-              <Button variant="secondary" size="sm">
-                Log in
-              </Button>
-            </Link>
-            <Link to="/register">
-              <Button size="sm">Sign up free</Button>
-            </Link>
-          </div>
-        </div>
-      </nav>
+      <Navbar />
 
       {/* ── Ticker Tape ──────────────────────────────────────────────── */}
       <div className="bg-primary-900 overflow-hidden">
@@ -339,75 +173,7 @@ export function Landing() {
           </div>
 
           {/* Nebula Index card */}
-          <div className="border border-gray-200 rounded-2xl overflow-hidden bg-surface-50">
-            <div className="bg-primary-900 px-6 py-4 flex items-center justify-between">
-              <span className="text-sm font-medium text-gray-300">
-                Nebula Index
-              </span>
-              <span className="text-xs font-semibold text-green-400 bg-green-900/30 border border-green-700/30 rounded-md px-2.5 py-1">
-                Live simulation
-              </span>
-            </div>
-            <div className="px-6 pt-5">
-              <p className="text-xs text-gray-400 mb-1">Current value</p>
-              <p className="text-4xl font-bold text-gray-900 tracking-tight">
-                {(currentIndexPaise / 100).toLocaleString("en-IN", {
-                  minimumFractionDigits: 2,
-                  maximumFractionDigits: 2,
-                })}
-              </p>
-              <p
-                className={`text-sm font-semibold mt-1.5 ${
-                  isIndexUp ? "text-green-600" : "text-red-600"
-                }`}
-              >
-                {isIndexUp ? "+" : ""}
-                {(indexChangePaise / 100).toLocaleString("en-IN", {
-                  minimumFractionDigits: 2,
-                  maximumFractionDigits: 2,
-                })}{" "}
-                ({indexChangePercent}%)
-              </p>
-            </div>
-            <div className="px-6 py-4">
-              <div className="relative h-[120px] bg-gradient-to-t from-green-50 to-transparent rounded overflow-hidden">
-                <div
-                  ref={chartContainerRef}
-                  style={{ height: "120px", width: "100%" }}
-                />
-              </div>
-            </div>
-            <div className="border-t border-gray-200 grid grid-cols-4">
-              {["NABIL", "NTC", "HDL", "NICA"].map((sym, i) => {
-                const found =
-                  stocks.find((s) => s.symbol === sym) ||
-                  FALLBACK_STOCKS.find((s) => s.symbol === sym);
-                const stock = found || FALLBACK_STOCKS[0];
-                const chgPaise = stock.currentPrice - stock.previousClose;
-                const pct = ((chgPaise / stock.previousClose) * 100).toFixed(2);
-                const isUp = chgPaise >= 0;
-
-                return (
-                  <div
-                    key={i}
-                    className="px-3 py-3 border-r border-gray-200 last:border-r-0 text-center"
-                  >
-                    <p className="text-xs font-semibold text-gray-900">
-                      {stock.symbol}
-                    </p>
-                    <p
-                      className={`text-xs mt-0.5 ${
-                        isUp ? "text-green-600" : "text-red-500"
-                      }`}
-                    >
-                      {isUp ? "+" : ""}
-                      {pct}%
-                    </p>
-                  </div>
-                );
-              })}
-            </div>
-          </div>
+          <NebulaIndexChart height={220} showDetails pollingInterval={5000} />
         </div>
       </section>
 
@@ -553,103 +319,7 @@ export function Landing() {
       </div>
 
       {/* ── Footer ────────────────────────────────────────────────────── */}
-      <footer className="bg-primary-950 pt-14 pb-7">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-          <div className="grid grid-cols-2 md:grid-cols-4 gap-10 mb-12">
-            <div className="col-span-2 md:col-span-1">
-              <span className="text-xl font-bold text-white">Nebula</span>
-              <p className="text-sm text-gray-400 mt-2 leading-relaxed">
-                Virtual trading and learning platform. Built for education.
-              </p>
-            </div>
-            <div>
-              <p className="text-xs font-semibold text-gray-500 tracking-wider uppercase mb-4">
-                Platform
-              </p>
-              <ul className="space-y-2.5">
-                {[
-                  "How it works",
-                  "Features",
-                  "Market simulation",
-                  "AI coaching",
-                ].map((l) => (
-                  <li key={l}>
-                    <span className="text-sm text-gray-400 hover:text-gray-200 transition-colors cursor-pointer">
-                      {l}
-                    </span>
-                  </li>
-                ))}
-              </ul>
-            </div>
-            <div>
-              <p className="text-xs font-semibold text-gray-500 tracking-wider uppercase mb-4">
-                Learn
-              </p>
-              <ul className="space-y-2.5">
-                {[
-                  "Learning resources",
-                  "Trading basics",
-                  "Market analysis",
-                  "Portfolio management",
-                ].map((l) => (
-                  <li key={l}>
-                    <span className="text-sm text-gray-400 hover:text-gray-200 transition-colors cursor-pointer">
-                      {l}
-                    </span>
-                  </li>
-                ))}
-              </ul>
-            </div>
-            <div>
-              <p className="text-xs font-semibold text-gray-500 tracking-wider uppercase mb-4">
-                Account
-              </p>
-              <ul className="space-y-2.5">
-                <li>
-                  <Link
-                    to="/register"
-                    className="text-sm text-gray-400 hover:text-gray-200 transition-colors"
-                  >
-                    Sign up
-                  </Link>
-                </li>
-                <li>
-                  <Link
-                    to="/login"
-                    className="text-sm text-gray-400 hover:text-gray-200 transition-colors"
-                  >
-                    Log in
-                  </Link>
-                </li>
-                <li>
-                  <Link
-                    to="/broker-apply"
-                    className="text-sm text-gray-400 hover:text-gray-200 transition-colors"
-                  >
-                    Broker application
-                  </Link>
-                </li>
-              </ul>
-            </div>
-          </div>
-
-          <div className="border-t border-primary-800 pt-6 flex items-center justify-between flex-wrap gap-3">
-            <span className="text-sm text-gray-500">
-              &copy; {new Date().getFullYear()} Nebula. Built for education.
-            </span>
-            <div className="flex gap-2.5">
-              {["BSc FYP", "Virtual only", "No real trades"].map((b) => (
-                <span
-                  key={b}
-                  className="text-xs font-medium text-gray-500 border border-primary-800 rounded-md px-2.5 py-1"
-                >
-                  {b}
-                </span>
-              ))}
-            </div>
-          </div>
-        </div>
-      </footer>
+      <Footer />
     </div>
   );
 }
