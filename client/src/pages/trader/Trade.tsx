@@ -69,6 +69,7 @@ export function Trade() {
   // ─── Market & Stock Data ────────────────────────────────────────────
   const [stocks, setStocks] = useState<Stock[]>([]);
   const [marketOpen, setMarketOpen] = useState(true);
+  const [engineOnline, setEngineOnline] = useState(true);
   const [loadingStocks, setLoadingStocks] = useState(true);
   const [fetchError, setFetchError] = useState("");
 
@@ -88,12 +89,14 @@ export function Trade() {
   useEffect(() => {
     async function init() {
       try {
-        const [stocksRes, statusRes] = await Promise.all([
+        const [stocksRes, statusRes, healthRes] = await Promise.all([
           api.get("/market/stocks"),
           api.get("/market/status"),
+          api.get("/health"),
         ]);
         setStocks(stocksRes.data);
         setMarketOpen(statusRes.data.isOpen);
+        setEngineOnline(healthRes.data.engine === "up");
       } catch {
         setFetchError("Failed to load market data. Please try again.");
       } finally {
@@ -358,10 +361,17 @@ export function Trade() {
         {/* Header */}
         <div className="flex items-center justify-between">
           <h1 className="text-2xl font-bold text-gray-900">Place order</h1>
-          <span className="inline-flex items-center gap-1.5 text-xs font-medium text-green-700 bg-green-50 border border-green-200 rounded-full px-2.5 py-1">
-            <span className="w-1.5 h-1.5 rounded-full bg-green-500" />
-            Market open
-          </span>
+          {engineOnline ? (
+            <span className="inline-flex items-center gap-1.5 text-xs font-medium text-green-700 bg-green-50 border border-green-200 rounded-full px-2.5 py-1">
+              <span className="w-1.5 h-1.5 rounded-full bg-green-500" />
+              Market open
+            </span>
+          ) : (
+            <span className="inline-flex items-center gap-1.5 text-xs font-medium text-red-700 bg-red-50 border border-red-200 rounded-full px-2.5 py-1">
+              <span className="w-1.5 h-1.5 rounded-full bg-red-500" />
+              Engine offline
+            </span>
+          )}
         </div>
 
         {/* Stock */}
