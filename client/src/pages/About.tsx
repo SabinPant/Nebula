@@ -538,7 +538,7 @@ export function About() {
         <div className="relative pl-10">
           <div className="absolute left-3 top-2 bottom-2 w-px bg-gray-200" />
           <div className="space-y-7">
-            {TIMELINE.map((t, i) => (
+            {TIMELINE.map((t, _i) => (
               <div key={t.phase} className="relative flex gap-5 items-start">
                 <div className="absolute -left-7 top-1 w-4 h-4 rounded-full bg-white border-2 border-indigo-400 ring-4 ring-white" />
                 <div>
