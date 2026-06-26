@@ -14,8 +14,7 @@ import {
   BadRequestException,
 } from '@nestjs/common';
 import { MarketRepository } from './market.repository';
-import { isMarketOpenNow, formatNepalTime } from '../../shared/utils/date';
-import { MARKET_CONSTANTS } from '../../shared/constants/market.constants';
+import { isMarketOpenNow } from '../../shared/utils/date';
 
 @Injectable()
 export class MarketService {
@@ -91,14 +90,14 @@ async getStockHistory(
   /**
    * Returns the current market status.
    */
-  getMarketStatus() {
+    getMarketStatus() {
     const isOpen = isMarketOpenNow();
 
     return {
       isOpen,
       message: isOpen
         ? 'Market is open'
-        : 'Market is closed',
+        : 'Market closed for daily settlement — resumes at 1:00 AM Nepal time',
       timestamp: new Date().toISOString(),
     };
   }
