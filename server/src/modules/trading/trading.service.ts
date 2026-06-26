@@ -34,6 +34,7 @@ import { OrderStatus, OrderType, OrderStyle, TransactionType } from '@prisma/cli
 import type { CreateOrderDto } from './dto/create-order.dto';
 import type Redis from 'ioredis';
 import { buildPageResponse } from '../../shared/utils/paginate';
+import { EventEmitter2 } from '@nestjs/event-emitter';
 
 @Injectable()
 export class TradingService {
@@ -43,6 +44,7 @@ export class TradingService {
     private readonly tradingRepo: TradingRepository,
     private readonly prisma: PrismaService,
     redisClient: RedisClient,
+    private readonly eventEmitter: EventEmitter2,
   ) {
     this.redis = redisClient.getClient();
   }
@@ -58,7 +60,7 @@ export class TradingService {
       if (cached) return cached;
     }
 
-        // ── 1.5. Daily Order Cap ─────────────────────────────────────────
+    // ── 1.5. Daily Order Cap ─────────────────────────────────────────
     const todayKey = `ratelimit:orders:daily:${userId}`;
     const todayCount = await this.redis.incr(todayKey);
     if (todayCount === 1) {
@@ -249,13 +251,18 @@ export class TradingService {
             tx,
           );
 
-                    return this.tradingRepo.findOrderById(created.id, tx);
+          return this.tradingRepo.findOrderById(created.id, tx);
         }
 
         // LIMIT: stays PENDING
         return created;
       });
     });
+
+    // Emit portfolio changed event after MARKET fill
+    if (dto.orderStyle === 'MARKET') {
+      this.eventEmitter.emit('portfolio.changed', { userId });
+    }
 
     // ── 8. Store Idempotency ──────────────────────────────────────────
     if (idempotencyKey) {
@@ -298,7 +305,7 @@ export class TradingService {
     const unfilledQuantity = order.quantity - order.filledQuantity;
     const releaseAmount = unfilledQuantity * (order.price ?? 0);
 
-    return withWalletLock(this.redis, userId, async () => {
+    const result = await withWalletLock(this.redis, userId, async () => {
       return this.prisma.$transaction(async (tx) => {
         if (order.type === 'BUY') {
           const wallet = await this.tradingRepo.findWalletByUserId(userId);
@@ -321,7 +328,7 @@ export class TradingService {
           OrderStatus.CANCELLED,
           {},
           tx,
-        );
+          );
 
         const wallet = await this.tradingRepo.findWalletByUserId(userId);
         await this.tradingRepo.createTransaction(
@@ -336,9 +343,13 @@ export class TradingService {
         return updated;
       });
     });
+
+    this.eventEmitter.emit('portfolio.changed', { userId });
+
+    return result;
   }
 
-    /**
+  /**
    * Returns page-based paginated order history for a user.
    *
    * @param userId - The authenticated user's ID
