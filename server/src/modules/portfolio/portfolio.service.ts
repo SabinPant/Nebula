@@ -28,8 +28,9 @@ export class PortfolioService {
         message: 'Portfolio not found. Start trading to create your portfolio.',
       });
     }
-
-    const holdings = portfolio.holdings.map((h) => {
+   
+    const activeHoldings = portfolio.holdings.filter((h) => h.quantity > 0);
+        const holdings = activeHoldings.map((h) => {
       const invested = h.quantity * h.averageBuyPrice;
       const currentValue = h.quantity * h.stock.currentPrice;
       const unrealizedPnl = currentValue - invested;
