@@ -4,12 +4,17 @@
  * Pushes portfolio updates to the authenticated user's room
  * when their portfolio changes (trade settlement, cancellation).
  *
- * Listens for portfolio.changed event via NestJS EventEmitter.
- * Does NOT recalculate on every price tick — only on trade events.
+ * Clients must emit subscribe:portfolio to join their user room.
+ * The gateway then listens for portfolio.changed events via EventEmitter
+ * and emits portfolio:update to the user's room.
  */
 
-import { WebSocketGateway, WebSocketServer } from '@nestjs/websockets';
-import { Server } from 'socket.io';
+import {
+  WebSocketGateway,
+  WebSocketServer,
+  SubscribeMessage,
+} from '@nestjs/websockets';
+import { Server, Socket } from 'socket.io';
 import { OnEvent } from '@nestjs/event-emitter';
 
 interface PortfolioChangedPayload {
@@ -26,6 +31,30 @@ interface PortfolioChangedPayload {
 export class PortfolioGateway {
   @WebSocketServer()
   server!: Server;
+
+  /**
+   * Client requests to receive portfolio updates.
+   * Joins the socket to their user room so portfolio:update events reach them.
+   */
+  @SubscribeMessage('subscribe:portfolio')
+  handleSubscribePortfolio(client: Socket): void {
+    const userId = client.handshake.auth?.userId;
+    if (userId) {
+      client.join(`user:${userId}`);
+    }
+  }
+
+  /**
+   * Client requests to stop receiving portfolio updates.
+   * Leaves the user room.
+   */
+  @SubscribeMessage('unsubscribe:portfolio')
+  handleUnsubscribePortfolio(client: Socket): void {
+    const userId = client.handshake.auth?.userId;
+    if (userId) {
+      client.leave(`user:${userId}`);
+    }
+  }
 
   /**
    * When a trade settles or is cancelled, push a portfolio:update
