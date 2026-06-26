@@ -117,6 +117,7 @@ export function Market() {
 
   const [watchlistPending, setWatchlistPending] = useState<string | null>(null);
   const [watchlistError, setWatchlistError] = useState("");
+  const [marketOpen, setMarketOpen] = useState(true);
 
   const chartContainerRef = useRef<HTMLDivElement>(null);
   const chartRef = useRef<IChartApi | null>(null);
@@ -206,9 +207,10 @@ export function Market() {
 
     async function fetchStocks() {
       try {
-        const [stocksRes, watchlistRes] = await Promise.all([
+        const [stocksRes, watchlistRes, statusRes] = await Promise.all([
           api.get("/market/stocks"),
           api.get("/market/watchlist"),
+          api.get("/market/status"),
         ]);
         const watchlistSymbols = new Set(
           watchlistRes.data.map((w: any) => w.stock.symbol),
@@ -218,6 +220,7 @@ export function Market() {
           isWatchlisted: watchlistSymbols.has(s.symbol),
         }));
         setStocks(merged);
+        setMarketOpen(statusRes.data.isOpen);
         symbols = merged.map((s: Stock) => s.symbol);
 
         connectSocket();
@@ -369,6 +372,13 @@ export function Market() {
 
   return (
     <div className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+      {!marketOpen && (
+        <div className="mb-4">
+          <Alert variant="warning">
+            Market closed for daily settlement — resumes at 1:00 AM Nepal time.
+          </Alert>
+        </div>
+      )}
       <h1 className="text-2xl font-bold text-gray-900 mb-6">Market</h1>
 
       <div className="flex flex-col md:flex-row gap-6">
