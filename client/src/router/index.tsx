@@ -37,6 +37,7 @@ import { Contact } from "../pages/Contact";
 import { Blog } from "../pages/Blog";
 import { PublicLayout } from "../components/layout/PublicLayout";
 import { Learn } from "../pages/Learn";
+import { Portfolio } from "../pages/trader/Portfolio";
 
 // ─── Guard Components ────────────────────────────────────────────────────
 
@@ -132,6 +133,7 @@ export const router = createBrowserRouter([
           { path: "/market/:symbol", element: <OldMarketRedirect /> },
           { path: "/trade", element: <Trade /> },
           { path: "/orders", element: <Orders /> },
+          { path: "/portfolio", element: <Portfolio /> },
         ],
       },
     ],

@@ -3,35 +3,36 @@ import { useAuthStore } from "../../stores/authStore";
 import { NebulaIndexChart } from "../../components/market/NebulaIndexChart";
 import { Card } from "../../components/ui/Card";
 import api from "../../services/api";
-import { formatPaise } from "../../lib/utils";
 
-interface WalletSummary {
-  availableBalance: number;
-  reservedBalance: number;
-  displayBalance: string;
+interface UserStats {
+  holdingsCount: number;
+  ordersCount: number;
 }
 
 export function Dashboard() {
   const user = useAuthStore((state) => state.user);
-  const [wallet, setWallet] = useState<WalletSummary | null>(null);
+  const [stats, setStats] = useState<UserStats | null>(null);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    async function fetchWallet() {
+    async function fetchStats() {
       try {
-        const { data } = await api.get("/wallet");
-        setWallet(data);
+        const [portfolioRes, ordersRes] = await Promise.all([
+          api.get("/portfolio/me"),
+          api.get("/orders?page=1&limit=1"),
+        ]);
+        setStats({
+          holdingsCount: portfolioRes.data.summary?.holdingsCount ?? 0,
+          ordersCount: ordersRes.data.pagination?.totalCount ?? 0,
+        });
       } catch {
-        // Silently fail — show fallback values
+        // Silently fail
       } finally {
         setLoading(false);
       }
     }
-    fetchWallet();
+    fetchStats();
   }, []);
-
-  const balance = wallet?.availableBalance ?? 5_000_000;
-  const reserved = wallet?.reservedBalance ?? 0;
 
   return (
     <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8 sm:py-12">
@@ -40,37 +41,31 @@ export function Dashboard() {
       </h1>
       <p className="mt-2 text-gray-500">Your virtual trading dashboard</p>
 
-      {/* Balance Cards */}
+      {/* User Info Cards */}
       <div className="mt-8 grid sm:grid-cols-2 lg:grid-cols-4 gap-4">
         <Card>
-          <p className="text-sm text-gray-500">Available Balance</p>
-          <p className="text-2xl font-bold text-gray-900 mt-1">
-            {loading ? (
-              <span className="text-gray-300">—</span>
-            ) : (
-              formatPaise(balance)
-            )}
+          <p className="text-sm text-gray-500">Email</p>
+          <p className="text-base font-medium text-gray-900 mt-1 truncate">
+            {user?.email ?? "—"}
           </p>
         </Card>
         <Card>
-          <p className="text-sm text-gray-500">Reserved</p>
-          <p className="text-2xl font-bold text-gray-900 mt-1">
-            {loading ? (
-              <span className="text-gray-300">—</span>
-            ) : (
-              formatPaise(reserved)
-            )}
+          <p className="text-sm text-gray-500">Account Type</p>
+          <p className="text-base font-medium text-gray-900 mt-1">
+            {user?.userType === "TRADER" ? "Trader" : (user?.userType ?? "—")}
           </p>
         </Card>
         <Card>
-          <p className="text-sm text-gray-500">Portfolio Value</p>
-          <p className="text-2xl font-bold text-gray-900 mt-1">—</p>
-          <p className="text-xs text-gray-400 mt-1">Coming in Sprint 6</p>
+          <p className="text-sm text-gray-500">Holdings</p>
+          <p className="text-2xl font-bold text-gray-900 mt-1">
+            {loading ? "—" : (stats?.holdingsCount ?? "—")}
+          </p>
         </Card>
         <Card>
-          <p className="text-sm text-gray-500">Profit / Loss</p>
-          <p className="text-2xl font-bold text-gray-900 mt-1">—</p>
-          <p className="text-xs text-gray-400 mt-1">Coming in Sprint 6</p>
+          <p className="text-sm text-gray-500">Total Orders</p>
+          <p className="text-2xl font-bold text-gray-900 mt-1">
+            {loading ? "—" : (stats?.ordersCount ?? "—")}
+          </p>
         </Card>
       </div>
 
