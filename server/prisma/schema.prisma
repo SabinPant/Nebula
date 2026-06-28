@@ -308,6 +308,7 @@ model Holding {
   stockId         String
   portfolioId     String
   quantity        Int
+  reservedQuantity  Int      @default(0)
   averageBuyPrice Int
   createdAt       DateTime @default(now())
   updatedAt       DateTime @updatedAt

@@ -11,8 +11,8 @@ export const MARKET_CONSTANTS = {
   /** Initial virtual balance for new traders in paise (Rs. 50,000) */
   INITIAL_VIRTUAL_BALANCE_PAISE: 5_000_000,
 
-  /** Maximum weekly top-up per trader in paise (Rs. 1,00,000) */
-  WEEKLY_TOPUP_CAP_PAISE: 10_000_000,
+  /** Maximum weekly top-up per trader in paise (Rs. 5,00,000) */
+  WEEKLY_TOPUP_CAP_PAISE: 50_000_000,
 
   /** Maximum shares per order */
   ORDER_MAX_QUANTITY: 100_000,

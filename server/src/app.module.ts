@@ -23,7 +23,10 @@ import { MarketModule } from './modules/market/market.module';
 import { SharedModule } from './shared/shared.module';
 import { HealthController } from './health.controller';
 import { PrismaService } from './core/database/prisma.service';
-
+import { TradingModule } from './modules/trading/trading.module';
+import { ScheduleModule } from '@nestjs/schedule';
+import { DailyResetCron } from './cron/daily-reset.cron';
+import { PortfolioModule } from './modules/portfolio/portfolio.module';
 @Global()
 @Module({
   imports: [
@@ -50,12 +53,16 @@ import { PrismaService } from './core/database/prisma.service';
     BrokerModule,
     WalletModule,
     MarketModule,
+    TradingModule,
     SharedModule,
+    ScheduleModule.forRoot(),
+    PortfolioModule,
   ],
   controllers: [HealthController],
-  providers: [
+   providers: [
     RedisClient,
     PrismaService,
+    DailyResetCron,
     {
       provide: 'APP_GUARD',
       useClass: ThrottlerGuard,

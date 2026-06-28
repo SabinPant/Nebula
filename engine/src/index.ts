@@ -33,6 +33,44 @@ redis.on('error', (err) => {
   console.error('[Engine] Redis error:', err.message);
 });
 
+// ─── Health check HTTP server ────────────────────────────────────────────
+import { createServer } from 'node:http';
+
+const HEALTH_PORT = parseInt(process.env.ENGINE_HTTP_PORT || '3003', 10);
+
+const healthServer = createServer((_req, res) => {
+  res.writeHead(200, { 'Content-Type': 'application/json' });
+  res.end(JSON.stringify({
+    status: 'ok',
+    uptime: process.uptime(),
+    stocks: STOCKS.length,
+    timestamp: new Date().toISOString(),
+  }));
+});
+
+healthServer.listen(HEALTH_PORT, () => {
+  console.log(`[Engine] Health endpoint listening on port ${HEALTH_PORT}`);
+});
+
+// Add health server to graceful shutdown
+const originalSIGTERM = process.listeners('SIGTERM');
+process.removeAllListeners('SIGTERM');
+process.on('SIGTERM', async () => {
+  console.log('[Engine] Shutting down...');
+  healthServer.close();
+  await redis.quit();
+  process.exit(0);
+});
+
+const originalSIGINT = process.listeners('SIGINT');
+process.removeAllListeners('SIGINT');
+process.on('SIGINT', async () => {
+  console.log('[Engine] Shutting down...');
+  healthServer.close();
+  await redis.quit();
+  process.exit(0);
+});
+
 /**
  * Main simulation loop.
  * Runs at the configured tick interval.

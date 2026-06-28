@@ -30,6 +30,9 @@ import { CreateBrokerApplicationDto } from './dto/create-broker-application.dto'
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 import { Response } from 'express';
 import { BrokerSetupDto } from './dto/broker-setup.dto';
+import { Roles } from '../auth/decorators/roles.decorator';
+import { RolesGuard } from '../auth/guards/roles.guard';
+import { UserType } from '@prisma/client';
 
 @Controller('broker-applications')
 export class BrokerController {
@@ -115,7 +118,8 @@ export class BrokerController {
    * Approves a broker application and sends a setup invitation.
    * Admin only — will be moved to AdminController in Sprint 13.
    */
-  @UseGuards(JwtAuthGuard)
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles(UserType.ADMIN)
   @Patch(':id/approve')
   @HttpCode(HttpStatus.OK)
   async approveApplication(
@@ -134,7 +138,8 @@ export class BrokerController {
    * Rejects a broker application with a mandatory reason.
    * Admin only — will be moved to AdminController in Sprint 13.
    */
-  @UseGuards(JwtAuthGuard)
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles(UserType.ADMIN)
   @Patch(':id/reject')
   @HttpCode(HttpStatus.OK)
   async rejectApplication(

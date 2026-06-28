@@ -14,8 +14,7 @@ import {
   BadRequestException,
 } from '@nestjs/common';
 import { MarketRepository } from './market.repository';
-import { isMarketOpenNow, formatNepalTime } from '../../shared/utils/date';
-import { MARKET_CONSTANTS } from '../../shared/constants/market.constants';
+import { isMarketOpenNow } from '../../shared/utils/date';
 
 @Injectable()
 export class MarketService {
@@ -91,15 +90,49 @@ async getStockHistory(
   /**
    * Returns the current market status.
    */
-  getMarketStatus() {
+    getMarketStatus() {
     const isOpen = isMarketOpenNow();
 
     return {
       isOpen,
       message: isOpen
         ? 'Market is open'
-        : 'Market is closed',
+        : 'Market closed for daily settlement — resumes at 1:00 AM Nepal time',
       timestamp: new Date().toISOString(),
+    };
+  }
+
+    /**
+   * Returns the current Nebula Index (average of all stock prices).
+   * All values in integer paise. Client only displays — zero computation.
+   */
+  async getIndex() {
+    const stocks = await this.marketRepository.findAllStocks();
+
+    if (!stocks.length) {
+      return {
+        value: 0,
+        change: 0,
+        changePercent: 0,
+        isUp: false,
+      };
+    }
+
+    const totalCurrent = stocks.reduce((sum, s) => sum + s.currentPrice, 0);
+    const totalPrevious = stocks.reduce((sum, s) => sum + s.previousClose, 0);
+
+    const value = Math.round(totalCurrent / stocks.length);
+    const previousValue = Math.round(totalPrevious / stocks.length);
+    const change = value - previousValue;
+    const changePercent = previousValue > 0
+      ? parseFloat(((change / previousValue) * 100).toFixed(2))
+      : 0;
+
+    return {
+      value,
+      change,
+      changePercent,
+      isUp: change >= 0,
     };
   }
 

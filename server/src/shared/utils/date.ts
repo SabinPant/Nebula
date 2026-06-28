@@ -10,16 +10,17 @@
  * (market hours, weekly cap reset, trading day checks) and display formatting.
  */
 
-import { startOfWeek, format, isWithinInterval } from 'date-fns';
+import { startOfWeek, format, getHours, getMinutes } from 'date-fns';
 import { toZonedTime, fromZonedTime } from 'date-fns-tz';
 
 export const NEPAL_TIMEZONE = 'Asia/Kathmandu';
 
-// Market hours in Nepal time (24-hour format)
-export const MARKET_OPEN_HOUR = 9;
-export const MARKET_OPEN_MINUTE = 30;
-export const MARKET_CLOSE_HOUR = 18;
-export const MARKET_CLOSE_MINUTE = 0;
+// Daily settlement window: market closes for 1 hour to reset previousClose
+// and unhalt all stocks. During this window, no trading is allowed.
+export const SETTLEMENT_START_HOUR = 0;  // 12:00 AM Nepal time
+export const SETTLEMENT_START_MINUTE = 0;
+export const SETTLEMENT_END_HOUR = 1;    // 1:00 AM Nepal time
+export const SETTLEMENT_END_MINUTE = 0;
 
 /**
  * Converts a UTC date to Nepal timezone-aware date object.
@@ -48,10 +49,28 @@ export function getStartOfWeekNepal(date: Date = new Date()): Date {
 
 /**
  * Checks if the market is currently open based on Nepal time.
- * Returns true Monday–Friday, 09:30–18:00 Nepal time.
+ *
+ * Market is CLOSED daily from 12:00 AM to 1:00 AM Nepal time
+ * for daily settlement (previousClose reset, unhalt stocks).
+ * Market is OPEN at all other times — 24/7 trading outside the settlement window.
+ *
  * Does NOT account for holidays — that's a future enhancement.
  */
 export function isMarketOpenNow(): boolean {
+  const nowNepal = toNepalTime(new Date());
+  const hour = getHours(nowNepal);
+  const minute = getMinutes(nowNepal);
+
+  // Convert to minutes since midnight for easy comparison
+  const currentMinutes = hour * 60 + minute;
+  const settlementStart = SETTLEMENT_START_HOUR * 60 + SETTLEMENT_START_MINUTE; // 0
+  const settlementEnd = SETTLEMENT_END_HOUR * 60 + SETTLEMENT_END_MINUTE;       // 60
+
+  // Closed during settlement window: 12:00 AM – 1:00 AM
+  if (currentMinutes >= settlementStart && currentMinutes < settlementEnd) {
+    return false;
+  }
+
   return true;
 }
 
