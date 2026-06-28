@@ -104,10 +104,7 @@ export function Landing() {
 
       {/* ── Ticker Tape ──────────────────────────────────────────────── */}
       <div className="bg-primary-900 overflow-hidden">
-        <div
-          className="flex animate-scroll whitespace-nowrap py-2"
-          style={{ animationDuration: "30s" }}
-        >
+        <div className="flex animate-[scroll_10s_linear_infinite] md:animate-[scroll_30s_linear_infinite] whitespace-nowrap py-2">
           {doubledStocks.map((stock, i) => {
             const chgPaise = stock.currentPrice - stock.previousClose;
             const pct = ((chgPaise / stock.previousClose) * 100).toFixed(2);
