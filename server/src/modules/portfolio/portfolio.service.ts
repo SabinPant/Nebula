@@ -20,6 +20,8 @@ export class PortfolioService {
    * Returns the full portfolio with live P&L per holding and summary totals.
    */
   async getPortfolio(userId: string) {
+        // Ensure portfolio row exists even if user hasn't traded yet
+    await this.portfolioRepository.ensurePortfolio(userId);
     const portfolio = await this.portfolioRepository.findPortfolioWithHoldings(userId);
 
     if (!portfolio) {
