@@ -106,7 +106,7 @@ export function Landing() {
       <div className="bg-primary-900 overflow-hidden">
         <div
           className="flex animate-scroll whitespace-nowrap py-2"
-          style={{ animationDuration: "60s" }}
+          style={{ animationDuration: "30s" }}
         >
           {doubledStocks.map((stock, i) => {
             const chgPaise = stock.currentPrice - stock.previousClose;
