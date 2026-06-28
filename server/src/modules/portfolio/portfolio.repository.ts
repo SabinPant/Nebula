@@ -64,4 +64,14 @@ export class PortfolioRepository {
       orderBy: { stock: { symbol: 'asc' } },
     });
   }
+
+    async ensurePortfolio(userId: string): Promise<string> {
+    const portfolio = await this.prisma.portfolio.upsert({
+      where: { userId },
+      update: {},
+      create: { userId },
+    });
+    return portfolio.id;
+  }
+  
 }
