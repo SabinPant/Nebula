@@ -8,8 +8,50 @@
  * to Date via @Type(() => Date) from class-transformer.
  */
 
-import { IsString, IsEmail, MinLength, IsDate, MaxLength, Matches } from 'class-validator';
+import {
+  IsString,
+  IsEmail,
+  MinLength,
+  IsDate,
+  MaxLength,
+  Matches,
+  Validate,
+  ValidatorConstraint,
+  ValidatorConstraintInterface,
+  ValidationArguments,
+} from 'class-validator';
 import { Type } from 'class-transformer';
+
+function calculateAge(dateOfBirth: Date, referenceDate: Date = new Date()): number {
+  let age = referenceDate.getUTCFullYear() - dateOfBirth.getUTCFullYear();
+
+  const hasHadBirthdayThisYear =
+    referenceDate.getUTCMonth() > dateOfBirth.getUTCMonth() ||
+    (referenceDate.getUTCMonth() === dateOfBirth.getUTCMonth() &&
+      referenceDate.getUTCDate() >= dateOfBirth.getUTCDate());
+
+  if (!hasHadBirthdayThisYear) {
+    age -= 1;
+  }
+
+  return age;
+}
+
+@ValidatorConstraint({ name: 'brokerAgeRange', async: false })
+class BrokerAgeRangeConstraint implements ValidatorConstraintInterface {
+  validate(value: Date): boolean {
+    if (!(value instanceof Date) || Number.isNaN(value.getTime())) {
+      return false;
+    }
+
+    const age = calculateAge(value);
+    return age >= 21 && age <= 89;
+  }
+
+  defaultMessage(args: ValidationArguments): string {
+    return `${args.property} must be between 21 and 89 years old`;
+  }
+}
 
 export class CreateBrokerApplicationDto {
   @IsString()
@@ -29,6 +71,9 @@ export class CreateBrokerApplicationDto {
 
   @Type(() => Date)
   @IsDate({ message: 'Please provide a valid date of birth' })
+  @Validate(BrokerAgeRangeConstraint, {
+    message: 'Applicants must be between 21 and 89 years old',
+  })
   dateOfBirth!: Date;
 
   @IsString()

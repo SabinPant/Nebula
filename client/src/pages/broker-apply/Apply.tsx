@@ -204,6 +204,49 @@ function CharCount({ value, min }: { value: string; min: number }) {
   );
 }
 
+function getAgeFromDateString(dateString: string): number | null {
+  const parts = dateString.split("-").map((part) => Number(part));
+
+  if (parts.length !== 3 || parts.some((part) => Number.isNaN(part))) {
+    return null;
+  }
+
+  const [year, month, day] = parts;
+  const today = new Date();
+  let age = today.getFullYear() - year;
+
+  const hasHadBirthdayThisYear =
+    today.getMonth() > month - 1 ||
+    (today.getMonth() === month - 1 && today.getDate() >= day);
+
+  if (!hasHadBirthdayThisYear) {
+    age -= 1;
+  }
+
+  return age;
+}
+
+function parseDateOnly(dateString: string): Date | null {
+  const parts = dateString.split("-").map((part) => Number(part));
+
+  if (parts.length !== 3 || parts.some((part) => Number.isNaN(part))) {
+    return null;
+  }
+
+  const [year, month, day] = parts;
+  const parsed = new Date(year, month - 1, day);
+
+  if (
+    parsed.getFullYear() !== year ||
+    parsed.getMonth() !== month - 1 ||
+    parsed.getDate() !== day
+  ) {
+    return null;
+  }
+
+  return parsed;
+}
+
 // ─── Main component ───────────────────────────────────────────────────────────
 
 export function BrokerApply() {
@@ -266,25 +309,31 @@ export function BrokerApply() {
     if (!phone.trim()) {
       errors.phone = "Phone number is required.";
     } else if (!/^\+?[0-9]{10,15}$/.test(phone.replace(/\s/g, ""))) {
-      errors.phone = "Enter a valid phone number (10–15 digits).";
+      errors.phone = "Enter a valid phone number (10-15 digits).";
     }
 
     if (!dateOfBirth) {
       errors.dateOfBirth = "Date of birth is required.";
     } else {
-      const dob = new Date(dateOfBirth);
-      const today = new Date();
-      today.setHours(0, 0, 0, 0);
+      const dob = parseDateOnly(dateOfBirth);
 
-      if (isNaN(dob.getTime())) {
+      if (!dob) {
         errors.dateOfBirth = "Please enter a valid date of birth.";
-      } else if (dob > today) {
-        errors.dateOfBirth = "Date of birth cannot be in the future.";
       } else {
-        const minAgeDate = new Date();
-        minAgeDate.setFullYear(today.getFullYear() - 21);
-        if (dob > minAgeDate) {
-          errors.dateOfBirth = "You must be at least 21 years old to apply.";
+        const today = new Date();
+        today.setHours(0, 0, 0, 0);
+
+        if (dob > today) {
+          errors.dateOfBirth = "Date of birth cannot be in the future.";
+        } else {
+          const age = getAgeFromDateString(dateOfBirth);
+
+          if (age === null) {
+            errors.dateOfBirth = "Please enter a valid date of birth.";
+          } else if (age < 21 || age > 89) {
+            errors.dateOfBirth =
+              "Applicants must be between 21 and 89 years old.";
+          }
         }
       }
     }
