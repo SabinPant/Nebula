@@ -32,8 +32,20 @@ export const configValidationSchema = Joi.object({
 
   // External APIs
   GEMINI_API_KEY: Joi.string().optional().allow(''),
-  ENGINE_HTTP_URL: Joi.string().default('http://localhost:3003'),
-  ENGINE_WS_URL: Joi.string().default('ws://localhost:3002'),
+  ENGINE_HTTP_URL: Joi.string()
+    .uri({ scheme: ['http', 'https'] })
+    .required()
+    .messages({
+      'string.uri': 'ENGINE_HTTP_URL must be a valid http or https URL',
+      'any.required': 'ENGINE_HTTP_URL is required',
+    }),
+  ENGINE_WS_URL: Joi.string()
+    .uri({ scheme: ['ws', 'wss'] })
+    .required()
+    .messages({
+      'string.uri': 'ENGINE_WS_URL must be a valid ws or wss URL',
+      'any.required': 'ENGINE_WS_URL is required',
+    }),
   ENGINE_HEALTH_CHECK_INTERVAL_MS: Joi.number().default(5000),
 
   // Cloudinary
@@ -57,6 +69,18 @@ export const configValidationSchema = Joi.object({
   WEEKLY_TOPUP_CAP_PAISE: Joi.number().default(50000000),
 
   // CORS
-  CORS_ORIGIN: Joi.string().default('http://localhost:5173'),
-  FRONTEND_URL: Joi.string().default('http://localhost:5173'),
+  CORS_ORIGIN: Joi.string()
+    .uri({ scheme: ['http', 'https'] })
+    .required()
+    .messages({
+      'string.uri': 'CORS_ORIGIN must be a valid http or https URL',
+      'any.required': 'CORS_ORIGIN is required',
+    }),
+  FRONTEND_URL: Joi.string()
+    .uri({ scheme: ['http', 'https'] })
+    .required()
+    .messages({
+      'string.uri': 'FRONTEND_URL must be a valid http or https URL',
+      'any.required': 'FRONTEND_URL is required',
+    }),
 });

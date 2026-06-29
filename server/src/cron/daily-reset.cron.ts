@@ -23,7 +23,7 @@ export class DailyResetCron {
 
     try {
       // Update previousClose = currentPrice and unhalt all stocks
-      const result: [{ count: number }] = await this.prisma.$queryRaw`
+      await this.prisma.$executeRaw`
         UPDATE "Stock"
         SET "previousClose" = "currentPrice",
             "isHalted" = false,
