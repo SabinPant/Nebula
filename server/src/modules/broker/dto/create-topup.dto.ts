@@ -17,6 +17,7 @@ import {
   Min,
   MinLength,
 } from 'class-validator';
+import { Type } from 'class-transformer';
 import { MARKET_CONSTANTS } from '../../../shared/constants/market.constants';
 
 const TOPUP_PAYMENT_METHODS = ['eSewa', 'Khalti', 'Bank Transfer', 'QR'] as const;
@@ -30,6 +31,7 @@ export class CreateTopupDto {
   traderId!: string;
 
   @IsInt({ message: 'Top-up amount must be a whole number in paise' })
+  @Type(() => Number)
   @Min(10_000, { message: 'Minimum top-up amount is Rs. 100 (10000 paise)' })
   @Max(MARKET_CONSTANTS.ORDER_MAX_PRICE_PAISE, {
     message: 'Maximum single top-up amount is Rs. 100,000 (10000000 paise)',
