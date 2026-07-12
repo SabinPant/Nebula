@@ -16,10 +16,10 @@ import {
   MaxLength,
   Min,
   MinLength,
+  IsObject,
 } from 'class-validator';
 import { Type } from 'class-transformer';
 import { MARKET_CONSTANTS } from '../../../shared/constants/market.constants';
-
 const TOPUP_PAYMENT_METHODS = ['eSewa', 'Khalti', 'Bank Transfer', 'QR'] as const;
 
 export class CreateTopupDto {
@@ -53,4 +53,7 @@ export class CreateTopupDto {
   @IsString({ message: 'Note must be a string' })
   @MaxLength(200, { message: 'Note must be at most 200 characters' })
   note?: string;
+
+  @IsOptional()
+  receipt?: any;
 }

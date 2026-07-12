@@ -38,6 +38,13 @@ import { Blog } from "../pages/Blog";
 import { PublicLayout } from "../components/layout/PublicLayout";
 import { Learn } from "../pages/Learn";
 import { Portfolio } from "../pages/trader/Portfolio";
+import { BrokerLayout } from "../components/layout/BrokerLayout";
+import { BrokerDashboard } from "../pages/broker/Dashboard";
+import { MyTraders } from "../pages/broker/MyTraders";
+import { TraderDetail } from "../pages/broker/TraderDetail";
+import { TopUpManagement } from "../pages/broker/TopUpManagement";
+import { FlagManagement } from "../pages/broker/FlagManagement";
+import { ActivityLog } from "../pages/broker/ActivityLog";
 
 // ─── Guard Components ────────────────────────────────────────────────────
 
@@ -49,6 +56,18 @@ function AuthGuard() {
   }
 
   return <Outlet />;
+}
+
+function getDashboardPath(userType?: string | null) {
+  switch (userType) {
+    case "BROKER":
+      return "/broker";
+    case "ADMIN":
+      return "/admin";
+    case "TRADER":
+    default:
+      return "/dashboard";
+  }
 }
 
 function OnboardingGuard() {
@@ -66,13 +85,46 @@ function OnboardingGuard() {
 }
 
 function GuestGuard() {
-  const { isAuthenticated } = useAuthStore();
+  const { isAuthenticated, user } = useAuthStore();
 
   if (isAuthenticated) {
-    return <Navigate to="/dashboard" replace />;
+    return <Navigate to={getDashboardPath(user?.userType)} replace />;
   }
 
   return <Outlet />;
+}
+
+function BrokerGuard() {
+  const { isAuthenticated, user } = useAuthStore();
+
+  if (!isAuthenticated) {
+    return <Navigate to="/login" replace />;
+  }
+
+  if (user?.userType !== "BROKER") {
+    return <Navigate to={getDashboardPath(user?.userType)} replace />;
+  }
+
+  return <Outlet />;
+}
+
+function AdminPlaceholder() {
+  return (
+    <div className="min-h-screen flex items-center justify-center bg-surface-50 px-6">
+      <div className="max-w-lg text-center space-y-3">
+        <p className="text-sm font-semibold uppercase tracking-[0.2em] text-primary-600">
+          Admin
+        </p>
+        <h1 className="text-3xl font-bold text-gray-900">
+          Admin dashboard coming soon
+        </h1>
+        <p className="text-gray-600">
+          This route is reserved for Sprint 13. Broker and trader dashboards are
+          available now.
+        </p>
+      </div>
+    </div>
+  );
 }
 
 function OldMarketRedirect() {
@@ -117,6 +169,31 @@ export const router = createBrowserRouter([
   {
     element: <AuthGuard />,
     children: [{ path: "/onboarding", element: <Onboarding /> }],
+  },
+
+  // Broker dashboard routes
+  {
+    element: <BrokerGuard />,
+    children: [
+      {
+        element: <BrokerLayout />,
+        children: [
+          { path: "/broker", element: <BrokerDashboard /> },
+          { path: "/broker/traders", element: <MyTraders /> },
+          { path: "/broker/traders/:traderId", element: <TraderDetail /> },
+          { path: "/broker/topups", element: <TopUpManagement /> },
+          { path: "/broker/flags", element: <FlagManagement /> },
+          { path: "/broker/activity", element: <ActivityLog /> },
+          { path: "/broker/market", element: <Market /> },
+        ],
+      },
+    ],
+  },
+
+  // Admin placeholder — reserved for Sprint 13
+  {
+    path: "/admin",
+    element: <AdminPlaceholder />,
   },
 
   // Fully onboarded only — wrapped in the sidebar layout
