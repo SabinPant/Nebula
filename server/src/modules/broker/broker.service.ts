@@ -14,6 +14,7 @@ import {
   ConflictException,
   NotFoundException,
   BadRequestException,
+  ForbiddenException,
 } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { BrokerRepository } from './broker.repository';
@@ -27,8 +28,24 @@ import { AuthRepository } from '../auth/auth.repository';
 import { generateAccessToken, generateRefreshToken } from '../../shared/utils/tokens';
 import { TokenStorage } from '../../shared/utils/token-storage';
 import { hashPassword } from '../../shared/utils/crypto';
-import { UserType, TransactionType } from '@prisma/client';
+import { EventEmitter2 } from '@nestjs/event-emitter';
+import { Request } from 'express';
+import {
+  NotificationType,
+  Prisma,
+  TopUpStatus,
+  TransactionType,
+  UserType,
+} from '@prisma/client';
 import { BrokerSetupDto } from './dto/broker-setup.dto';
+import { CreateTopupDto } from './dto/create-topup.dto';
+import { CreateFlagDto } from './dto/create-flag.dto';
+import { RedisClient } from '../../core/database/redis.client';
+import { withWalletLock } from '../../shared/utils/wallet-lock';
+import { buildPageResponse } from '../../shared/utils/paginate';
+import { MARKET_CONSTANTS } from '../../shared/constants/market.constants';
+import { ErrorCodes } from '../../shared/constants/errors';
+import { formatCurrency } from '../../shared/utils/currency';
 
 @Injectable()
 export class BrokerService {
@@ -41,7 +58,47 @@ export class BrokerService {
   private readonly authRepository: AuthRepository,
   private readonly jwtService: JwtService,
   private readonly tokenStorage: TokenStorage,
+  private readonly eventEmitter: EventEmitter2,
+  private readonly redisClient: RedisClient,
 ) {}
+
+  private clampPage(page: number): number {
+    return Math.max(page, 1);
+  }
+
+  private clampLimit(limit: number): number {
+    return Math.min(Math.max(limit, 1), 50);
+  }
+
+  private async assertActiveBroker(brokerId: string) {
+    const broker = await this.prisma.user.findFirst({
+      where: {
+        id: brokerId,
+        userType: UserType.BROKER,
+        deletedAt: null,
+      },
+      select: {
+        id: true,
+        isSuspended: true,
+      },
+    });
+
+    if (!broker) {
+      throw new NotFoundException({
+        code: ErrorCodes.NOT_FOUND,
+        message: 'Broker not found',
+      });
+    }
+
+    if (broker.isSuspended) {
+      throw new ForbiddenException({
+        code: ErrorCodes.BROKER_SUSPENDED,
+        message: 'This broker account is suspended',
+      });
+    }
+
+    return broker;
+  }
 
   /**
    * Submits a new broker application with document upload.
@@ -119,6 +176,393 @@ if (existingByPhone) {
       message:
         'Application submitted successfully. You will receive an email when it has been reviewed.',
     };
+  }
+
+  async getAssignedTraders(brokerId: string) {
+    const traders = await this.brokerRepository.findAssignedTraders(brokerId);
+
+    return traders.map((trader) => ({
+      traderId: trader.id,
+      displayName: trader.displayName,
+      email: trader.email,
+      createdAt: trader.createdAt,
+      orderCount: trader._count.orders,
+      wallet: {
+        availableBalancePaise: trader.wallet?.availableBalance ?? 0,
+        availableBalanceFormatted: formatCurrency(
+          trader.wallet?.availableBalance ?? 0,
+        ),
+        totalDepositedPaise: trader.wallet?.totalDeposited ?? 0,
+        totalDepositedFormatted: formatCurrency(trader.wallet?.totalDeposited ?? 0),
+      },
+    }));
+  }
+
+  async getAssignedTraderDetail(brokerId: string, traderId: string) {
+    const trader = await this.brokerRepository.findAssignedTraderDetail(
+      brokerId,
+      traderId,
+    );
+
+    if (!trader) {
+      throw new ForbiddenException({
+        code: ErrorCodes.BROKER_NOT_ASSIGNED,
+        message: 'This trader is not assigned to your broker account',
+      });
+    }
+
+    return {
+      trader: {
+        id: trader.id,
+        displayName: trader.displayName,
+        email: trader.email,
+        createdAt: trader.createdAt,
+      },
+      wallet: trader.wallet
+        ? {
+            id: trader.wallet.id,
+            availableBalancePaise: trader.wallet.availableBalance,
+            availableBalanceFormatted: formatCurrency(
+              trader.wallet.availableBalance,
+            ),
+            reservedBalancePaise: trader.wallet.reservedBalance,
+            reservedBalanceFormatted: formatCurrency(trader.wallet.reservedBalance),
+            totalDepositedPaise: trader.wallet.totalDeposited,
+            totalDepositedFormatted: formatCurrency(trader.wallet.totalDeposited),
+          }
+        : null,
+      portfolio: trader.portfolio
+        ? {
+            id: trader.portfolio.id,
+            totalValuePaise: trader.portfolio.totalValue,
+            totalValueFormatted: formatCurrency(trader.portfolio.totalValue),
+            totalInvestedPaise: trader.portfolio.totalInvested,
+            totalInvestedFormatted: formatCurrency(trader.portfolio.totalInvested),
+            totalProfitLossPaise: trader.portfolio.totalProfitLoss,
+            totalProfitLossFormatted: formatCurrency(
+              trader.portfolio.totalProfitLoss,
+            ),
+            holdings: trader.portfolio.holdings.map((holding) => ({
+              holdingId: holding.id,
+              stockSymbol: holding.stock.symbol,
+              companyName: holding.stock.companyName,
+              quantity: holding.quantity,
+              reservedQuantity: holding.reservedQuantity,
+              averageBuyPricePaise: holding.averageBuyPrice,
+              averageBuyPriceFormatted: formatCurrency(holding.averageBuyPrice),
+              currentPricePaise: holding.stock.currentPrice,
+              currentPriceFormatted: formatCurrency(holding.stock.currentPrice),
+            })),
+          }
+        : null,
+      recentOrders: trader.orders.map((order) => ({
+        orderId: order.id,
+        stockSymbol: order.stock.symbol,
+        companyName: order.stock.companyName,
+        type: order.type,
+        orderStyle: order.orderStyle,
+        status: order.status,
+        quantity: order.quantity,
+        filledQuantity: order.filledQuantity,
+        pricePaise: order.price,
+        priceFormatted: order.price !== null ? formatCurrency(order.price) : null,
+        createdAt: order.createdAt,
+      })),
+    };
+  }
+
+  async processTopup(
+    brokerId: string,
+    dto: CreateTopupDto,
+    receiptFile: { buffer: Buffer; mimetype: string; originalname: string },
+    req: Request,
+  ) {
+    await this.assertActiveBroker(brokerId);
+
+    const trader = await this.brokerRepository.findAssignedTraderDetail(
+      brokerId,
+      dto.traderId,
+    );
+
+    if (!trader) {
+      throw new ForbiddenException({
+        code: ErrorCodes.BROKER_NOT_ASSIGNED,
+        message: 'This trader is not assigned to your broker account',
+      });
+    }
+
+    if (!receiptFile) {
+      throw new BadRequestException({
+        code: ErrorCodes.VALIDATION_ERROR,
+        message: 'Receipt image is required',
+      });
+    }
+
+    const uploadResult = await this.cloudinaryService.uploadFile(
+      receiptFile,
+      'broker-receipts',
+    );
+
+    const weeklyTotalBefore = await this.brokerRepository.getWeeklyTopUpTotal(
+      dto.traderId,
+    );
+    const weeklyTotalAfter = weeklyTotalBefore + dto.amountPaise;
+
+    if (weeklyTotalAfter > MARKET_CONSTANTS.WEEKLY_TOPUP_CAP_PAISE) {
+      throw new BadRequestException({
+        code: ErrorCodes.WEEKLY_CAP_EXCEEDED,
+        message: 'Weekly top-up cap exceeded for this trader',
+      });
+    }
+
+    const result = await withWalletLock(
+      this.redisClient.getClient(),
+      dto.traderId,
+      async () => {
+        return this.prisma.$transaction(async (tx) => {
+          const topUpRequest = await this.brokerRepository.createTopUpRequest(
+            {
+              traderId: dto.traderId,
+              brokerId,
+              amountPaise: dto.amountPaise,
+              paymentMethod: dto.paymentMethod,
+              transactionRef: dto.transactionRef,
+              receiptUrl: uploadResult.secure_url,
+              receiptPublicId: uploadResult.public_id,
+              note: dto.note,
+              status: TopUpStatus.COMPLETED,
+              weeklyTotalBefore,
+            },
+            tx,
+          );
+
+          const wallet = await tx.wallet.update({
+            where: { userId: dto.traderId },
+            data: {
+              availableBalance: { increment: dto.amountPaise },
+              totalDeposited: { increment: dto.amountPaise },
+            },
+          });
+
+          await tx.transaction.create({
+            data: {
+              walletId: wallet.id,
+              type: TransactionType.COLLATERAL_TOP_UP,
+              amount: dto.amountPaise,
+              description: `Collateral top-up via ${dto.paymentMethod}`,
+              referenceId: topUpRequest.id,
+            },
+          });
+
+          await this.brokerRepository.createAuditLog(
+            {
+              userId: brokerId,
+              action: 'TOP_UP_CREDITED',
+              ipAddress: req.ip,
+              userAgent: req.headers['user-agent'],
+              metadata: {
+                amountPaise: dto.amountPaise,
+                traderId: dto.traderId,
+                transactionRef: dto.transactionRef,
+                topUpRequestId: topUpRequest.id,
+              },
+            },
+            tx,
+          );
+
+          await tx.notification.create({
+            data: {
+              userId: dto.traderId,
+              type: NotificationType.TOP_UP_CREDITED,
+              title: 'Collateral top-up credited',
+              message: `Rs. ${(dto.amountPaise / 100).toFixed(2)} has been added to your wallet.`,
+              data: {
+                topUpRequestId: topUpRequest.id,
+                brokerId,
+                amountPaise: dto.amountPaise,
+                newBalancePaise: wallet.availableBalance,
+              } as Prisma.InputJsonValue,
+            },
+          });
+
+          const adminUsers = await tx.user.findMany({
+            where: {
+              userType: UserType.ADMIN,
+              deletedAt: null,
+            },
+            select: { id: true },
+          });
+
+          await Promise.all(
+            adminUsers.map((admin) =>
+              tx.notification.create({
+                data: {
+                  userId: admin.id,
+                  type: NotificationType.SYSTEM,
+                  title: 'Broker top-up processed',
+                  message: `Broker ${brokerId} credited trader ${dto.traderId} with Rs. ${(dto.amountPaise / 100).toFixed(2)}.`,
+                  data: {
+                    topUpRequestId: topUpRequest.id,
+                    brokerId,
+                    traderId: dto.traderId,
+                    amountPaise: dto.amountPaise,
+                  } as Prisma.InputJsonValue,
+                },
+              }),
+            ),
+          );
+
+          return {
+            topUpRequest,
+            wallet,
+          };
+        });
+      },
+    );
+
+    this.eventEmitter.emit('topup:credited', {
+      userId: dto.traderId,
+      brokerId,
+      topUpRequestId: result.topUpRequest.id,
+      amountPaise: dto.amountPaise,
+      newBalancePaise: result.wallet.availableBalance,
+    });
+
+    return {
+      message: 'Top-up credited successfully',
+      topUpRequest: {
+        id: result.topUpRequest.id,
+        traderId: result.topUpRequest.traderId,
+        brokerId: result.topUpRequest.brokerId,
+        amountPaise: result.topUpRequest.amountPaise,
+        weeklyTotalBefore: result.topUpRequest.weeklyTotalBefore,
+        weeklyTotalAfter,
+        transactionRef: result.topUpRequest.transactionRef,
+        paymentMethod: result.topUpRequest.paymentMethod,
+        receiptUrl: result.topUpRequest.receiptUrl,
+        createdAt: result.topUpRequest.createdAt,
+      },
+      wallet: {
+        availableBalancePaise: result.wallet.availableBalance,
+        availableBalanceFormatted: formatCurrency(result.wallet.availableBalance),
+        totalDepositedPaise: result.wallet.totalDeposited,
+        totalDepositedFormatted: formatCurrency(result.wallet.totalDeposited),
+      },
+    };
+  }
+
+  async getTopupHistory(brokerId: string, page: number, limit: number) {
+    const safePage = this.clampPage(page);
+    const safeLimit = this.clampLimit(limit);
+    const { data, totalCount } = await this.brokerRepository.findTopUpsByBrokerId(
+      brokerId,
+      safePage,
+      safeLimit,
+    );
+
+    const mapped = data.map((topUp) => ({
+      topUpRequestId: topUp.id,
+      traderName: topUp.trader.displayName,
+      traderEmail: topUp.trader.email,
+      amountPaise: topUp.amountPaise,
+      amountFormatted: formatCurrency(topUp.amountPaise),
+      paymentMethod: topUp.paymentMethod,
+      transactionRef: topUp.transactionRef,
+      status: topUp.status,
+      weeklyTotalBefore: topUp.weeklyTotalBefore,
+      createdAt: topUp.createdAt,
+    }));
+
+    return buildPageResponse(mapped, totalCount, safePage, safeLimit);
+  }
+
+  async createFlag(brokerId: string, dto: CreateFlagDto) {
+    const trader = await this.brokerRepository.findAssignedTraderDetail(
+      brokerId,
+      dto.traderId,
+    );
+
+    if (!trader) {
+      throw new ForbiddenException({
+        code: ErrorCodes.BROKER_NOT_ASSIGNED,
+        message: 'This trader is not assigned to your broker account',
+      });
+    }
+
+    const flag = await this.prisma.$transaction(async (tx) => {
+      const createdFlag = await this.brokerRepository.createFlag(
+        {
+          traderId: dto.traderId,
+          brokerId,
+          reason: dto.reason,
+          note: dto.note,
+          status: 'OPEN',
+        },
+        tx,
+      );
+
+      await this.brokerRepository.createAuditLog(
+        {
+          userId: brokerId,
+          action: 'ACCOUNT_FLAGGED',
+          metadata: {
+            traderId: dto.traderId,
+            flagId: createdFlag.id,
+            reason: dto.reason,
+          },
+        },
+        tx,
+      );
+
+      return createdFlag;
+    });
+
+    return flag;
+  }
+
+  async getFlagHistory(brokerId: string, page: number, limit: number) {
+    const safePage = this.clampPage(page);
+    const safeLimit = this.clampLimit(limit);
+    const { data, totalCount } = await this.brokerRepository.findFlagsByBrokerId(
+      brokerId,
+      safePage,
+      safeLimit,
+    );
+
+    const mapped = data.map((flag) => ({
+      flagId: flag.id,
+      traderName: flag.trader.displayName,
+      traderEmail: flag.trader.email,
+      reason: flag.reason,
+      note: flag.note,
+      status: flag.status,
+      createdAt: flag.createdAt,
+      resolvedAt: flag.resolvedAt,
+      resolution: flag.resolution,
+    }));
+
+    return buildPageResponse(mapped, totalCount, safePage, safeLimit);
+  }
+
+  async getActivityHistory(brokerId: string, page: number, limit: number) {
+    const safePage = this.clampPage(page);
+    const safeLimit = this.clampLimit(limit);
+    const { data, totalCount } = await this.brokerRepository.findAuditLogsByBrokerId(
+      brokerId,
+      safePage,
+      safeLimit,
+    );
+
+    const mapped = data.map((entry) => ({
+      auditLogId: entry.id,
+      action: entry.action,
+      ipAddress: entry.ipAddress,
+      userAgent: entry.userAgent,
+      metadata: entry.metadata,
+      createdAt: entry.createdAt,
+    }));
+
+    return buildPageResponse(mapped, totalCount, safePage, safeLimit);
   }
 
   /**
