@@ -184,6 +184,7 @@ export const router = createBrowserRouter([
           { path: "/broker/topups", element: <TopUpManagement /> },
           { path: "/broker/flags", element: <FlagManagement /> },
           { path: "/broker/activity", element: <ActivityLog /> },
+          { path: "/broker/market", element: <Market /> },
         ],
       },
     ],

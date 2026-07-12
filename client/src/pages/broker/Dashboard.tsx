@@ -1,4 +1,5 @@
 import { useEffect, useState } from "react";
+import { Link } from "react-router-dom";
 import { Alert } from "../../components/ui/Alert";
 import { Card } from "../../components/ui/Card";
 import { useAuthStore } from "../../stores/authStore";
@@ -8,6 +9,67 @@ interface BrokerStats {
   assignedTraders: number;
   topUpsThisWeek: number | null;
   activeFlags: number;
+}
+
+function RecentActivity() {
+  const [activities, setActivities] = useState<any[]>([]);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    async function fetch() {
+      try {
+        const { data } = await api.get("/broker/activity?page=1&limit=5");
+        setActivities(data.data);
+      } catch {
+        // Silently fail
+      } finally {
+        setLoading(false);
+      }
+    }
+    fetch();
+  }, []);
+
+  const ACTION_LABELS: Record<string, string> = {
+    TOP_UP_CREDITED: "Top-Up",
+    ACCOUNT_FLAGGED: "Flagged",
+  };
+
+  if (loading) return null;
+
+  return (
+    <Card title="Recent Activity">
+      {activities.length === 0 ? (
+        <p className="text-sm text-gray-500">No activity yet.</p>
+      ) : (
+        <div className="space-y-2">
+          {activities.map((a, i) => (
+            <div key={i} className="flex items-center justify-between text-sm">
+              <span className="text-gray-600">
+                <span className="inline-block text-xs font-medium px-1.5 py-0.5 rounded bg-primary-50 text-primary-700 mr-2">
+                  {ACTION_LABELS[a.action] || a.action}
+                </span>
+                {a.action === "TOP_UP_CREDITED"
+                  ? `Rs. ${a.metadata?.amountPaise / 100 || 0}`
+                  : ""}
+              </span>
+              <span className="text-xs text-gray-400">
+                {new Date(a.createdAt).toLocaleDateString("en-US", {
+                  month: "short",
+                  day: "numeric",
+                })}
+              </span>
+            </div>
+          ))}
+          <Link
+            to="/broker/activity"
+            className="block text-xs text-primary-600 hover:text-primary-700 mt-2"
+          >
+            View all activity
+          </Link>
+        </div>
+      )}
+    </Card>
+  );
 }
 
 export function BrokerDashboard() {
@@ -94,22 +156,30 @@ export function BrokerDashboard() {
 
       {!loading && !error && (
         <div className="mt-8 grid gap-4 lg:grid-cols-2">
-          <Card title="Overview">
-            <div className="space-y-3 text-sm text-gray-600">
-              <p>
-                Use My Traders to review assigned accounts and open detail
-                views.
-              </p>
-              <p>Use Top-Ups to process collateral credits and audit them.</p>
-              <p>Use Flags to track suspicious trader activity.</p>
+          <Card title="Quick Actions">
+            <div className="space-y-2">
+              <Link
+                to="/broker/traders"
+                className="block px-3 py-2 rounded-md text-sm text-gray-600 hover:bg-gray-50 hover:text-gray-900 transition-colors"
+              >
+                View assigned traders
+              </Link>
+              <Link
+                to="/broker/topups"
+                className="block px-3 py-2 rounded-md text-sm text-gray-600 hover:bg-gray-50 hover:text-gray-900 transition-colors"
+              >
+                Process collateral top-up
+              </Link>
+              <Link
+                to="/broker/flags"
+                className="block px-3 py-2 rounded-md text-sm text-gray-600 hover:bg-gray-50 hover:text-gray-900 transition-colors"
+              >
+                Flag suspicious activity
+              </Link>
             </div>
           </Card>
 
-          <Card title="Recent Activity">
-            <p className="text-sm text-gray-600">
-              Activity summary will expand when the activity table is built.
-            </p>
-          </Card>
+          <RecentActivity />
         </div>
       )}
     </div>

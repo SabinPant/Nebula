@@ -112,6 +112,24 @@ function ActivityIcon({ active }: { active: boolean }) {
   );
 }
 
+function MarketIcon({ active }: { active: boolean }) {
+  return (
+    <svg
+      className={iconClass(active)}
+      fill="none"
+      viewBox="0 0 24 24"
+      stroke="currentColor"
+      strokeWidth={1.75}
+    >
+      <path
+        strokeLinecap="round"
+        strokeLinejoin="round"
+        d="M3 17l5-5 4 4 7-8M21 8h-4M21 8v4"
+      />
+    </svg>
+  );
+}
+
 function MenuIcon() {
   return (
     <svg
@@ -173,6 +191,11 @@ const navItems: NavItem[] = [
     label: "Activity",
     to: "/broker/activity",
     icon: (active) => <ActivityIcon active={active} />,
+  },
+  {
+    label: "Market",
+    to: "/broker/market",
+    icon: (active) => <MarketIcon active={active} />,
   },
 ];
 
