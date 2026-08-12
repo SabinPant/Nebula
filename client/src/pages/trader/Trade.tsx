@@ -43,7 +43,7 @@ interface OrderResponse {
   quantity: number;
   filledQuantity: number;
   price: number | null;
-  stock: { symbol: string; companyName: string };
+  stock?: { symbol: string; companyName: string };
 }
 
 type OrderType = "BUY" | "SELL";
@@ -317,7 +317,9 @@ export function Trade() {
             <div>
               <p className="text-gray-500">Stock</p>
               <p className="font-medium text-gray-900">
-                {result.stock.symbol} — {result.stock.companyName}
+                {result.stock?.symbol ?? selectedStock?.symbol}
+                {(result.stock?.companyName ?? selectedStock?.companyName) &&
+                  ` — ${result.stock?.companyName ?? selectedStock?.companyName}`}
               </p>
             </div>
             <div>
@@ -466,21 +468,18 @@ export function Trade() {
                 </button>
                 <button
                   type="button"
-                  disabled
-                  aria-disabled="true"
-                  title="Limit orders coming in a future update"
-                  className="relative py-2.5 px-4 rounded-md text-sm font-medium border border-gray-200 bg-gray-100 text-gray-400 cursor-not-allowed"
+                  role="radio"
+                  aria-checked={orderStyle === "LIMIT"}
+                  onClick={() => handleOrderStyleChange("LIMIT")}
+                  className={`py-2.5 px-4 rounded-md text-sm font-medium border transition-colors ${
+                    orderStyle === "LIMIT"
+                      ? "bg-primary-700 text-white border-primary-700"
+                      : "bg-white text-gray-700 border-gray-300 hover:bg-gray-50"
+                  }`}
                 >
                   Limit
-                  <span className="absolute -top-1.5 -right-1.5 bg-gray-400 text-white text-[10px] px-1.5 py-0.5 rounded-full font-medium">
-                    Soon
-                  </span>
                 </button>
               </div>
-              <p className="mt-1.5 text-xs text-gray-400">
-                Limit orders let you set your own price. Coming in a future
-                update.
-              </p>
             </fieldset>
           </div>
         </Card>

@@ -7,11 +7,20 @@
  * Design decisions (Sprint 5):
  * - MARKET orders check engine counterparty BEFORE reserving (atomic rejection)
  * - MARKET fills immediately under mock engine
- * - LIMIT orders reserve and stay PENDING
  * - All wallet mutations inside Redis lock + Prisma transaction
  * - Settlement completes before HTTP response
- * - No Trade rows created (mock engine has no counterparty)
  * - Cost basis locked at placement (stored on order.price)
+ *
+ * Design decisions (Sprint 9 — real engine integration):
+ * - LIMIT orders now publish to the engine (orders:new) after the placement
+ *   transaction commits, and stay PENDING — the engine's matching loop
+ *   fills them asynchronously; EngineService (engine.service.ts) subscribes
+ *   to orders:filled and performs the actual wallet/holding settlement.
+ * - LIMIT cancellations publish to orders:cancel so the engine drops the
+ *   order from its book; the server-side fund/share release is unchanged.
+ * - Trade rows are now created (Sprint 9-10 scope) — but only by
+ *   EngineService for engine-matched fills, since MARKET orders under the
+ *   current mock-fill path still have no real counterparty order to link.
  */
 
 import {
@@ -35,6 +44,24 @@ import type { CreateOrderDto } from './dto/create-order.dto';
 import type Redis from 'ioredis';
 import { buildPageResponse } from '../../shared/utils/paginate';
 import { EventEmitter2 } from '@nestjs/event-emitter';
+import { z } from 'zod';
+
+// Mirrors engine/src/index.ts's NewOrderMessageSchema / CancelOrderMessageSchema
+// exactly — the two services are independent processes, so the contract is
+// duplicated by design rather than shared via an import (the engine has zero
+// dependency on the server, and must stay that way).
+const NewOrderMessageSchema = z.object({
+  orderId: z.string().min(1),
+  userId: z.string().min(1),
+  stockSymbol: z.string().min(1),
+  type: z.enum(['BUY', 'SELL']),
+  price: z.number().int().positive(),
+  quantity: z.number().int().positive(),
+});
+
+const CancelOrderMessageSchema = z.object({
+  orderId: z.string().min(1),
+});
 
 @Injectable()
 export class TradingService {
@@ -264,6 +291,17 @@ export class TradingService {
       this.eventEmitter.emit('portfolio.changed', { userId });
     }
 
+    // ── 7.5. Publish LIMIT orders to the engine ────────────────────────
+    // Published AFTER the transaction commits, never inside it — the
+    // engine could start matching this order the instant it's published,
+    // and a DB transaction that later rolled back would leave a phantom
+    // order resting in the engine's book with no corresponding row here.
+    // The order stays PENDING in Postgres; EngineService (subscribed to
+    // orders:filled) settles it whenever the engine matches it.
+    if (dto.orderStyle === 'LIMIT' && order) {
+      await this.publishNewOrderToEngine(order, stock.symbol);
+    }
+
     // ── 8. Store Idempotency ──────────────────────────────────────────
     if (idempotencyKey) {
       await storeIdempotencyResult(this.redis, idempotencyKey, order, dto);
@@ -346,6 +384,18 @@ export class TradingService {
 
     this.eventEmitter.emit('portfolio.changed', { userId });
 
+    // Tell the engine to drop it from the order book too. Only LIMIT
+    // orders are ever published to orders:new in the first place (MARKET
+    // orders fill or reject instantly and never enter the engine's book),
+    // so only LIMIT cancellations need to be forwarded. Published after
+    // the DB transaction commits, same reasoning as placeOrder: the order
+    // is already CANCELLED here even if the engine message is dropped or
+    // delayed, so there is no correctness dependency on ordering — this
+    // is strictly "also tell the engine," not part of the transaction.
+    if (order.orderStyle === OrderStyle.LIMIT) {
+      await this.publishCancelToEngine(orderId);
+    }
+
     return result;
   }
 
@@ -376,5 +426,41 @@ export class TradingService {
    */
   private async checkEngineCounterparty(_symbol: string): Promise<boolean> {
     return true;
+  }
+
+  /**
+   * Publishes a newly-created LIMIT order to the engine's orders:new
+   * channel so it can be added to the Redis order book and matched.
+   *
+   * The message is validated against the same shape the engine expects
+   * (engine/src/index.ts NewOrderMessageSchema) before publishing — this
+   * is defense-in-depth so a future refactor that accidentally changes a
+   * field name fails loudly here in a typed context, instead of silently
+   * producing a message the engine's own Zod schema then rejects and logs
+   * as malformed with no visibility on the server side.
+   */
+  private async publishNewOrderToEngine(
+    order: { id: string; userId: string; price: number | null; quantity: number; type: OrderType },
+    stockSymbol: string,
+  ): Promise<void> {
+    const message = NewOrderMessageSchema.parse({
+      orderId: order.id,
+      userId: order.userId,
+      stockSymbol,
+      type: order.type,
+      price: order.price,
+      quantity: order.quantity,
+    });
+
+    await this.redis.publish('orders:new', JSON.stringify(message));
+  }
+
+  /**
+   * Publishes a cancellation request to the engine's orders:cancel channel
+   * so it removes the order from the Redis order book.
+   */
+  private async publishCancelToEngine(orderId: string): Promise<void> {
+    const message = CancelOrderMessageSchema.parse({ orderId });
+    await this.redis.publish('orders:cancel', JSON.stringify(message));
   }
 }

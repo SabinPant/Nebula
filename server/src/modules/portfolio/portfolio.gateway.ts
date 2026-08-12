@@ -7,6 +7,14 @@
  * Clients must emit subscribe:portfolio to join their user room.
  * The gateway then listens for portfolio.changed events via EventEmitter
  * and emits portfolio:update to the user's room.
+ *
+ * Also handles order.filled (Sprint 9 — real engine integration):
+ * EngineService emits this once per side after a LIMIT order fills, and it
+ * is pushed as order:filled per the CLAUDE.md WebSocket events reference.
+ * It shares this gateway (rather than a new one) because CLAUDE.md scopes
+ * both events to the same user:{userId} room, which clients already join
+ * via subscribe:portfolio — there is no separate "subscribe to my orders"
+ * room to maintain.
  */
 
 import {
@@ -19,6 +27,14 @@ import { OnEvent } from '@nestjs/event-emitter';
 
 interface PortfolioChangedPayload {
   userId: string;
+}
+
+interface OrderFilledPayload {
+  userId: string;
+  orderId: string;
+  symbol: string;
+  price: number;
+  quantity: number;
 }
 
 @WebSocketGateway({
@@ -64,6 +80,23 @@ export class PortfolioGateway {
   handlePortfolioChanged(payload: PortfolioChangedPayload): void {
     this.server.to(`user:${payload.userId}`).emit('portfolio:update', {
       timestamp: new Date().toISOString(),
+    });
+  }
+
+  /**
+   * When a LIMIT order fills (fully or partially) via the real engine,
+   * push order:filled to the owning trader so the UI can update without
+   * polling. Executed price/quantity are for THIS fill event, not
+   * necessarily the order's final totals — a partial fill may be followed
+   * by further order:filled events for the same orderId.
+   */
+  @OnEvent('order.filled')
+  handleOrderFilled(payload: OrderFilledPayload): void {
+    this.server.to(`user:${payload.userId}`).emit('order:filled', {
+      orderId: payload.orderId,
+      symbol: payload.symbol,
+      executedPrice: payload.price,
+      quantity: payload.quantity,
     });
   }
 }

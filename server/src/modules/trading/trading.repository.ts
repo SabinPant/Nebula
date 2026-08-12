@@ -256,6 +256,27 @@ export class TradingRepository {
     });
   }
 
+  // ─── Writes: Trades ──────────────────────────────────────────────────────
+
+  /**
+   * Creates a Trade row linking a matched buy/sell order pair.
+   * Only produced when the real engine matches two resting orders — the
+   * mock/MARKET-only path never has a real counterparty order to link.
+   */
+  async createTrade(
+    data: {
+      buyOrderId: string;
+      sellOrderId: string;
+      stockId: string;
+      quantity: number;
+      price: number;
+    },
+    tx?: Prisma.TransactionClient,
+  ) {
+    const client = tx ?? this.prisma;
+    return client.trade.create({ data });
+  }
+
   // ─── Writes: Transactions ────────────────────────────────────────────────
 
   async createTransaction(
