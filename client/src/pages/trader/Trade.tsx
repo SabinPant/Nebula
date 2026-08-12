@@ -13,11 +13,12 @@
  * instead of in a banner at the top of the page that's easy to scroll past.
  */
 
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useRef, useCallback } from "react";
 import { Card } from "../../components/ui/Card";
 import { Button } from "../../components/ui/Button";
 import { Input } from "../../components/ui/Input";
 import { Alert } from "../../components/ui/Alert";
+import { OrderBookLadder, type OrderBook } from "../../components/market/OrderBookLadder";
 import { useAuthStore } from "../../stores/authStore";
 import api from "../../services/api";
 import { formatPaise } from "../../lib/utils";
@@ -81,6 +82,17 @@ export function Trade() {
   const [priceRupees, setPriceRupees] = useState(""); // user-facing rupees
   const [submitting, setSubmitting] = useState(false);
 
+  // Mirrors selectedStockId in a ref so the order book fetch effect can
+  // tell a stale response (from a stock the user has since switched away
+  // from) apart from the current one — same pattern as Market.tsx's
+  // selectedSymbolRef.
+  const selectedStockIdRef = useRef(selectedStockId);
+
+  // ─── Order Book (LIMIT only) ─────────────────────────────────────────
+  const [orderBook, setOrderBook] = useState<OrderBook | null>(null);
+  const [orderBookLoading, setOrderBookLoading] = useState(true);
+  const [orderBookError, setOrderBookError] = useState("");
+
   // ─── Result State ───────────────────────────────────────────────────
   const [result, setResult] = useState<OrderResponse | null>(null);
   const [error, setError] = useState("");
@@ -105,6 +117,12 @@ export function Trade() {
     }
     init();
   }, []);
+
+  // Keep the ref in sync so the order book fetch effect never acts on a
+  // stale stock selection.
+  useEffect(() => {
+    selectedStockIdRef.current = selectedStockId;
+  }, [selectedStockId]);
 
   // ─── Input handlers ──────────────────────────────────────────────────
   // Each one clears any previous server error. Without this, a stale
@@ -184,6 +202,56 @@ export function Trade() {
           isLimit && pricePaise ? ` @ ${formatPaise(pricePaise)}` : ""
         }`
       : "Select a stock and quantity to continue";
+
+  // ─── Order book (LIMIT only) ─────────────────────────────────────────
+  // Fetches whenever the selected stock changes AND the user is looking
+  // at a LIMIT order (a MARKET order fills instantly at the best available
+  // price — there's no book to consult). Polls every 4s while both
+  // conditions hold, matching Market.tsx's cadence exactly.
+  //
+  // Keying the effect on isLimit as well as selectedStockId means
+  // switching MARKET -> LIMIT starts it, and switching LIMIT -> MARKET
+  // runs this same effect's cleanup (clearing the interval) while the new
+  // run's guard clause immediately returns after clearing orderBook — so
+  // "stop polling and hide the ladder" falls out of the normal
+  // effect-dependency lifecycle rather than needing a separate handler.
+  useEffect(() => {
+    if (!isLimit || !selectedStockId) {
+      setOrderBook(null);
+      return;
+    }
+
+    const stockId = selectedStockId;
+
+    setOrderBookLoading(true);
+    setOrderBookError("");
+    setOrderBook(null);
+
+    async function fetchOrderBook() {
+      const stock = stocks.find((s) => s.id === stockId);
+      if (!stock) return; // stock list not loaded yet or ID stale — nothing to fetch
+
+      try {
+        const { data } = await api.get(`/market/stocks/${stock.symbol}/orderbook`);
+
+        if (selectedStockIdRef.current !== stockId) return;
+
+        setOrderBook(data);
+      } catch {
+        if (selectedStockIdRef.current !== stockId) return;
+        setOrderBookError("Failed to load order book.");
+      } finally {
+        if (selectedStockIdRef.current === stockId) {
+          setOrderBookLoading(false);
+        }
+      }
+    }
+
+    fetchOrderBook();
+    const intervalId = setInterval(fetchOrderBook, 4000);
+
+    return () => clearInterval(intervalId);
+  }, [selectedStockId, isLimit, stocks]);
 
   // ─── Submit ─────────────────────────────────────────────────────────
   const handleSubmit = useCallback(
@@ -517,6 +585,17 @@ export function Trade() {
             )}
           </div>
         </Card>
+
+        {/* Order Book — LIMIT only, so the user can set an informed price */}
+        {isLimit && (
+          <Card title="Order Book">
+            <OrderBookLadder
+              book={orderBook}
+              loading={orderBookLoading}
+              error={orderBookError}
+            />
+          </Card>
+        )}
       </div>
 
       {/* ─── Sticky action footer ──────────────────────────────────────

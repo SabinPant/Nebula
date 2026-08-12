@@ -75,6 +75,16 @@ export class MarketController {
     );
   }
 
+  /**
+   * Returns the live order book depth for a stock, aggregated by price
+   * level. Public endpoint, no auth required — same as other market data.
+   */
+  @Get('stocks/:symbol/orderbook')
+  @HttpCode(HttpStatus.OK)
+  getOrderBook(@Param('symbol') symbol: string) {
+    return this.marketService.getOrderBook(symbol);
+  }
+
   @Get('stocks/:symbol')
   @HttpCode(HttpStatus.OK)
   getStock(@Param('symbol') symbol: string) {

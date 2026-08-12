@@ -18,6 +18,7 @@ import { createChart, IChartApi, ISeriesApi, Time } from "lightweight-charts";
 import { Card } from "../../components/ui/Card";
 import { Button } from "../../components/ui/Button";
 import { Alert } from "../../components/ui/Alert";
+import { OrderBookLadder, type OrderBook } from "../../components/market/OrderBookLadder";
 import api from "../../services/api";
 import { socket, connectSocket } from "../../lib/socket";
 import { formatPaise } from "../../lib/utils";
@@ -114,6 +115,10 @@ export function Market() {
 
   const [chartLoading, setChartLoading] = useState(true);
   const [chartError, setChartError] = useState("");
+
+  const [orderBook, setOrderBook] = useState<OrderBook | null>(null);
+  const [orderBookLoading, setOrderBookLoading] = useState(true);
+  const [orderBookError, setOrderBookError] = useState("");
 
   const [watchlistPending, setWatchlistPending] = useState<string | null>(null);
   const [watchlistError, setWatchlistError] = useState("");
@@ -303,6 +308,45 @@ export function Market() {
     fetchHistory();
   }, [selectedSymbol]);
 
+  // Fetch the order book whenever the selected symbol changes, then poll
+  // every 4s while mounted — slightly slower than the engine's ~3s tick
+  // interval so this never fires faster than the book could actually
+  // change. Stale responses are dropped the same way chart history is:
+  // if the user has clicked to a different stock by the time a request
+  // resolves, selectedSymbolRef has already moved on and the response is
+  // ignored. The interval is cleared by this effect's own cleanup on
+  // every symbol change AND on unmount — React runs it in both cases.
+  useEffect(() => {
+    if (!selectedSymbol) return;
+    const sym = selectedSymbol;
+
+    setOrderBookLoading(true);
+    setOrderBookError("");
+    setOrderBook(null);
+
+    async function fetchOrderBook() {
+      try {
+        const { data } = await api.get(`/market/stocks/${sym}/orderbook`);
+
+        if (selectedSymbolRef.current !== sym) return;
+
+        setOrderBook(data);
+      } catch {
+        if (selectedSymbolRef.current !== sym) return;
+        setOrderBookError("Failed to load order book.");
+      } finally {
+        if (selectedSymbolRef.current === sym) {
+          setOrderBookLoading(false);
+        }
+      }
+    }
+
+    fetchOrderBook();
+    const intervalId = setInterval(fetchOrderBook, 4000);
+
+    return () => clearInterval(intervalId);
+  }, [selectedSymbol]);
+
   async function handleToggleWatchlist() {
     if (!selectedStock || watchlistPending) return;
 
@@ -450,6 +494,15 @@ export function Market() {
                 <Alert variant="error">{chartError}</Alert>
               </div>
             )}
+          </Card>
+
+          {/* Order Book — live depth ladder, polled every 4s */}
+          <Card title="Order Book">
+            <OrderBookLadder
+              book={orderBook}
+              loading={orderBookLoading}
+              error={orderBookError}
+            />
           </Card>
 
           {/* Details */}

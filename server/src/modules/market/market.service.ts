@@ -2,7 +2,7 @@
  * Market Service
  *
  * Business logic for market data — stock listings, price history,
- * market status, and watchlist management.
+ * market status, watchlist management, and order book depth.
  *
  * All prices are in integer paise. Display conversion via currency utilities.
  */
@@ -13,12 +13,22 @@ import {
   ConflictException,
   BadRequestException,
 } from '@nestjs/common';
+import type Redis from 'ioredis';
 import { MarketRepository } from './market.repository';
+import { RedisClient } from '../../core/database/redis.client';
+import { readOrderBook, type Order } from './order-book.reader';
 import { isMarketOpenNow } from '../../shared/utils/date';
 
 @Injectable()
 export class MarketService {
-  constructor(private readonly marketRepository: MarketRepository) {}
+  private readonly redis: Redis;
+
+  constructor(
+    private readonly marketRepository: MarketRepository,
+    redisClient: RedisClient,
+  ) {
+    this.redis = redisClient.getClient();
+  }
 
   /**
    * Returns all stocks with their current prices.
@@ -86,6 +96,85 @@ async getStockHistory(
     volume: Number(candle.volume),
   }));
 }
+
+  /**
+   * Returns the live order book depth for a stock, aggregated by price
+   * level — e.g. "500 shares @ Rs. 485.00 across 3 orders" rather than 3
+   * separate rows for each individual order. This is business logic (an
+   * aggregation over raw engine data), not a database query, so it lives
+   * here rather than in the repository — order-book.reader.ts only reads
+   * the raw per-order records straight out of Redis.
+   *
+   * Buy side sorted by price descending (highest/best bid first).
+   * Sell side sorted by price ascending (lowest/best ask first).
+   * Quantity per level is each order's `quantity` field as-is — per the
+   * engine's own convention (see engine/src/matching-engine.ts and
+   * order-book.reader.ts), `quantity` on a resting order already IS the
+   * remaining/unfilled amount, decremented in place on every partial
+   * fill. `filledQuantity` is a separate cumulative-fill counter for
+   * settlement history — it must NOT be subtracted again here, or a
+   * partially filled order's depth contribution is double-counted down
+   * (undercounting real book liquidity).
+   */
+  async getOrderBook(symbol: string) {
+    const upperSymbol = symbol.toUpperCase();
+
+    const stock = await this.marketRepository.findStockBySymbol(upperSymbol);
+    if (!stock) {
+      throw new NotFoundException({
+        code: 'NOT_FOUND',
+        message: `Stock with symbol "${upperSymbol}" not found`,
+      });
+    }
+
+    const book = await readOrderBook(this.redis, upperSymbol);
+
+    return {
+      symbol: upperSymbol,
+      buy: this.aggregateByPriceLevel(book.buy, 'desc'),
+      sell: this.aggregateByPriceLevel(book.sell, 'asc'),
+      timestamp: new Date().toISOString(),
+    };
+  }
+
+  /**
+   * Groups orders by price, summing each level's outstanding quantity and
+   * counting how many distinct orders make it up. The input orders are
+   * already in price-time priority order (readOrderBook/readBuyOrders/
+   * readSellOrders guarantee this), so grouping preserves that ordering
+   * for free — no need to re-sort by price after grouping, only to decide
+   * ascending vs. descending direction for the final array.
+   *
+   * order.quantity is summed directly — NOT quantity - filledQuantity.
+   * See the getOrderBook docstring above for why: quantity already IS the
+   * remaining amount under the engine's convention.
+   */
+  private aggregateByPriceLevel(
+    orders: Order[],
+    direction: 'asc' | 'desc',
+  ): { price: number; quantity: number; orderCount: number }[] {
+    const levels = new Map<number, { quantity: number; orderCount: number }>();
+
+    for (const order of orders) {
+      const existing = levels.get(order.price);
+      if (existing) {
+        existing.quantity += order.quantity;
+        existing.orderCount += 1;
+      } else {
+        levels.set(order.price, { quantity: order.quantity, orderCount: 1 });
+      }
+    }
+
+    const result = Array.from(levels.entries()).map(([price, { quantity, orderCount }]) => ({
+      price,
+      quantity,
+      orderCount,
+    }));
+
+    result.sort((a, b) => (direction === 'desc' ? b.price - a.price : a.price - b.price));
+
+    return result;
+  }
 
   /**
    * Returns the current market status.
