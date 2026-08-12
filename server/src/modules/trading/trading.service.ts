@@ -5,22 +5,35 @@
  * Validates balances, reserves funds/shares, settles trades, manages holdings.
  *
  * Design decisions (Sprint 5):
- * - MARKET orders check engine counterparty BEFORE reserving (atomic rejection)
- * - MARKET fills immediately under mock engine
  * - All wallet mutations inside Redis lock + Prisma transaction
  * - Settlement completes before HTTP response
  * - Cost basis locked at placement (stored on order.price)
  *
  * Design decisions (Sprint 9 — real engine integration):
- * - LIMIT orders now publish to the engine (orders:new) after the placement
+ * - LIMIT orders publish to the engine (orders:new) after the placement
  *   transaction commits, and stay PENDING — the engine's matching loop
  *   fills them asynchronously; EngineService (engine.service.ts) subscribes
- *   to orders:filled and performs the actual wallet/holding settlement.
+ *   to orders:filled and performs the actual wallet/holding settlement,
+ *   including creating the Trade row for that fill.
  * - LIMIT cancellations publish to orders:cancel so the engine drops the
  *   order from its book; the server-side fund/share release is unchanged.
- * - Trade rows are now created (Sprint 9-10 scope) — but only by
- *   EngineService for engine-matched fills, since MARKET orders under the
- *   current mock-fill path still have no real counterparty order to link.
+ * - MARKET orders still fill instantly inside the placement transaction —
+ *   this is intentionally simplified (mock-style instant fill) rather than
+ *   routed through the engine's order book. No Trade row is created for a
+ *   MARKET fill, since there is no real counterparty order to link; the
+ *   real per-trade counterparty matching lives on the LIMIT/engine path.
+ *
+ * Design decisions (Sprint 10 — engine health gate):
+ * - EVERY order (MARKET or LIMIT) is rejected with 503 ENGINE_UNAVAILABLE
+ *   if the engine is down, checked BEFORE any validation or reservation —
+ *   see EngineHealthService. This closes the gap where LIMIT orders used
+ *   to publish into a dead orders:new channel and vanish, and where MARKET
+ *   orders used to "fill" via an unconditional-true counterparty check
+ *   with no actual engine running behind it.
+ * - The old checkEngineCounterparty() MARKET-only check (and the REJECTED
+ *   order path it produced) has been removed — it always returned true and
+ *   never did real counterparty validation, so once the health gate covers
+ *   both order styles up front, it was dead weight with a misleading name.
  */
 
 import {
@@ -28,10 +41,12 @@ import {
   NotFoundException,
   BadRequestException,
   ForbiddenException,
+  ServiceUnavailableException,
 } from '@nestjs/common';
 import { TradingRepository } from './trading.repository';
 import { PrismaService } from '../../core/database/prisma.service';
 import { RedisClient } from '../../core/database/redis.client';
+import { EngineHealthService } from './engine-health.service';
 import { withWalletLock } from '../../shared/utils/wallet-lock';
 import {
   checkIdempotency,
@@ -72,19 +87,35 @@ export class TradingService {
     private readonly prisma: PrismaService,
     redisClient: RedisClient,
     private readonly eventEmitter: EventEmitter2,
+    private readonly engineHealth: EngineHealthService,
   ) {
     this.redis = redisClient.getClient();
   }
 
   /**
-   * Places an order. Handles both MARKET (immediate fill under mock engine)
-   * and LIMIT (reserve, stay PENDING).
+   * Places an order. Handles both MARKET (immediate fill, mock-style) and
+   * LIMIT (reserve, stay PENDING, matched by the real engine). Rejected
+   * outright with 503 ENGINE_UNAVAILABLE if the engine is down.
    */
   async placeOrder(userId: string, dto: CreateOrderDto, idempotencyKey?: string) {
     // ── 1. Idempotency Check ──────────────────────────────────────────
     if (idempotencyKey) {
       const cached = await checkIdempotency(this.redis, idempotencyKey, dto);
       if (cached) return cached;
+    }
+
+    // ── 1.3. Engine Health Check ───────────────────────────────────────
+    // Gates BOTH order styles, and runs before any reservation happens —
+    // funds/shares must never be locked for an order that has no chance
+    // of ever being processed. Reads a cached boolean (EngineHealthService
+    // polls the engine every ENGINE_HEALTH_CHECK_INTERVAL_MS) rather than
+    // fetching the engine live here, so a slow/hanging engine can't add
+    // its own latency to every order placement.
+    if (!this.engineHealth.isEngineUp()) {
+      throw new ServiceUnavailableException({
+        code: ErrorCodes.ENGINE_UNAVAILABLE,
+        message: 'Trading is temporarily unavailable. Please try again shortly.',
+      });
     }
 
     // ── 1.5. Daily Order Cap ─────────────────────────────────────────
@@ -160,42 +191,11 @@ export class TradingService {
       }
     }
 
-    // ── 6. Engine check (MARKET only — BEFORE reserving) ──────────────
-    // Design rule: MARKET rejection is atomic. Check counterparty BEFORE
-    // the Prisma transaction. No reservation if no counterparty exists.
-    if (dto.orderStyle === 'MARKET') {
-      const hasCounterparty = await this.checkEngineCounterparty(stock.symbol);
-      if (!hasCounterparty) {
-        const rejected = await this.prisma.$transaction(async (tx) => {
-          const order = await this.tradingRepo.createOrder(
-            {
-              userId,
-              stockId: dto.stockId,
-              type: dto.type as OrderType,
-              orderStyle: OrderStyle.MARKET,
-              price,
-              quantity: dto.quantity,
-              idempotencyKey,
-            },
-            tx,
-          );
-          await this.tradingRepo.updateOrderStatus(
-            order.id,
-            OrderStatus.REJECTED,
-            { rejectionReason: 'No counterparty available' },
-            tx,
-          );
-          return this.tradingRepo.findOrderById(order.id);
-        });
-
-        if (idempotencyKey) {
-          await storeIdempotencyResult(this.redis, idempotencyKey, rejected, dto);
-        }
-        return rejected;
-      }
-    }
-
-    // ── 7. Execute Under Lock + Transaction ───────────────────────────
+    // ── 6. Execute Under Lock + Transaction ───────────────────────────
+    // MARKET orders no longer need a pre-transaction counterparty check
+    // here (Sprint 5-9) — the engine health gate in step 1.3 already
+    // guarantees the engine is up before we get this far, which is the
+    // only thing that check ever actually verified.
     const order = await withWalletLock(this.redis, userId, async () => {
       return this.prisma.$transaction(async (tx) => {
         const created = await this.tradingRepo.createOrder(
@@ -233,7 +233,7 @@ export class TradingService {
           tx,
         );
 
-        // MARKET: fill immediately (counterparty confirmed in step 6)
+        // MARKET: fill immediately (mock-style — see class docstring)
         if (dto.orderStyle === 'MARKET') {
           await this.tradingRepo.updateOrderStatus(
             created.id,
@@ -291,7 +291,7 @@ export class TradingService {
       this.eventEmitter.emit('portfolio.changed', { userId });
     }
 
-    // ── 7.5. Publish LIMIT orders to the engine ────────────────────────
+    // ── 6.5. Publish LIMIT orders to the engine ────────────────────────
     // Published AFTER the transaction commits, never inside it — the
     // engine could start matching this order the instant it's published,
     // and a DB transaction that later rolled back would leave a phantom
@@ -302,7 +302,7 @@ export class TradingService {
       await this.publishNewOrderToEngine(order, stock.symbol);
     }
 
-    // ── 8. Store Idempotency ──────────────────────────────────────────
+    // ── 7. Store Idempotency ──────────────────────────────────────────
     if (idempotencyKey) {
       await storeIdempotencyResult(this.redis, idempotencyKey, order, dto);
     }
@@ -416,16 +416,6 @@ export class TradingService {
     ]);
 
     return buildPageResponse(orders, totalCount, page, cappedLimit);
-  }
-
-  /**
-   * Checks whether the engine has a counterparty for a MARKET order.
-   *
-   * Sprint 5 (mock engine): Always returns true.
-   * Sprint 9-10: Replace with actual engine HTTP health + order book depth check.
-   */
-  private async checkEngineCounterparty(_symbol: string): Promise<boolean> {
-    return true;
   }
 
   /**

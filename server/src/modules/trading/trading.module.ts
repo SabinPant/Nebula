@@ -7,6 +7,7 @@ import { TradingController } from './trading.controller';
 import { TradingService } from './trading.service';
 import { TradingRepository } from './trading.repository';
 import { EngineService } from './engine.service';
+import { EngineHealthService } from './engine-health.service';
 import { PrismaService } from '../../core/database/prisma.service';
 
 @Module({
@@ -32,6 +33,12 @@ import { PrismaService } from '../../core/database/prisma.service';
     EventEmitterModule.forRoot(),
   ],
   controllers: [TradingController],
-  providers: [TradingService, TradingRepository, EngineService, PrismaService],
+  providers: [
+    TradingService,
+    TradingRepository,
+    EngineService,
+    EngineHealthService,
+    PrismaService,
+  ],
 })
 export class TradingModule {}
