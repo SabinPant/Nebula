@@ -27,6 +27,7 @@ import { TradingModule } from './modules/trading/trading.module';
 import { ScheduleModule } from '@nestjs/schedule';
 import { DailyResetCron } from './cron/daily-reset.cron';
 import { PortfolioModule } from './modules/portfolio/portfolio.module';
+import { LearningModule } from './modules/learning/learning.module';
 @Global()
 @Module({
   imports: [
@@ -57,6 +58,7 @@ import { PortfolioModule } from './modules/portfolio/portfolio.module';
     SharedModule,
     ScheduleModule.forRoot(),
     PortfolioModule,
+    LearningModule,
   ],
   controllers: [HealthController],
    providers: [

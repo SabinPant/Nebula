@@ -37,6 +37,7 @@ import { Contact } from "../pages/Contact";
 import { Blog } from "../pages/Blog";
 import { PublicLayout } from "../components/layout/PublicLayout";
 import { Learn } from "../pages/Learn";
+import { LearnArticle } from "../pages/LearnArticle";
 import { Portfolio } from "../pages/trader/Portfolio";
 import { BrokerLayout } from "../components/layout/BrokerLayout";
 import { BrokerDashboard } from "../pages/broker/Dashboard";
@@ -161,7 +162,6 @@ export const router = createBrowserRouter([
       { path: "/about", element: <About /> },
       { path: "/contact", element: <Contact /> },
       { path: "/blog", element: <Blog /> },
-      { path: "/learn", element: <Learn /> },
     ],
   },
 
@@ -211,6 +211,8 @@ export const router = createBrowserRouter([
           { path: "/trade", element: <Trade /> },
           { path: "/orders", element: <Orders /> },
           { path: "/portfolio", element: <Portfolio /> },
+          { path: "/learn", element: <Learn /> },
+          { path: "/learn/:slug", element: <LearnArticle /> },
         ],
       },
     ],
