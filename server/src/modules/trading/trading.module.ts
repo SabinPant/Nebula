@@ -40,5 +40,9 @@ import { PrismaService } from '../../core/database/prisma.service';
     EngineHealthService,
     PrismaService,
   ],
+  // TradingRepository exported so AdminModule can reuse it for order
+  // cancellation during user suspension (see order-cancellation.helper.ts)
+  // without duplicating its release-amount logic.
+  exports: [TradingRepository],
 })
 export class TradingModule {}

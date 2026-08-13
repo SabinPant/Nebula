@@ -11,19 +11,27 @@
  */
 
 import { PrismaClient, UserType, ResourceTier } from '@prisma/client';
+import { hashPassword } from '../src/shared/utils/crypto';
 
 const prisma = new PrismaClient();
 
 async function main(): Promise<void> {
   console.log('Seeding database...');
 
+  // Default admin password — bcrypt cost 12, same as every other password
+  // in the system (see shared/utils/crypto.ts). Change this immediately
+  // after first login via PATCH /auth/change-password.
+  const adminPasswordHash = await hashPassword('ChangeMe123!');
+
   // Create Admin user (singular — only one exists, hardcoded, no registration endpoint)
   const admin = await prisma.user.upsert({
     where: { email: 'admin@nebula.com' },
-    update: {},
+    update: {
+      password: adminPasswordHash,
+    },
     create: {
       email: 'admin@nebula.com',
-      password: null, // Will be set via direct DB update or a setup script in production
+      password: adminPasswordHash,
       userType: UserType.ADMIN,
       displayName: 'Nebula Admin',
       isEmailVerified: true,

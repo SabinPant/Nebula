@@ -60,6 +60,7 @@ import type Redis from 'ioredis';
 import { buildPageResponse } from '../../shared/utils/paginate';
 import { EventEmitter2 } from '@nestjs/event-emitter';
 import { z } from 'zod';
+import { releaseAndCancelOrder } from './order-cancellation.helper';
 
 // Mirrors engine/src/index.ts's NewOrderMessageSchema / CancelOrderMessageSchema
 // exactly — the two services are independent processes, so the contract is
@@ -340,45 +341,11 @@ export class TradingService {
       });
     }
 
-    const unfilledQuantity = order.quantity - order.filledQuantity;
-    const releaseAmount = unfilledQuantity * (order.price ?? 0);
-
     const result = await withWalletLock(this.redis, userId, async () => {
       return this.prisma.$transaction(async (tx) => {
-        if (order.type === 'BUY') {
-          const wallet = await this.tradingRepo.findWalletByUserId(userId);
-          await this.tradingRepo.releaseBalanceForOrder(
-            wallet!.id,
-            releaseAmount,
-            tx,
-          );
-        } else {
-          await this.tradingRepo.releaseHoldingShares(
-            userId,
-            order.stockId,
-            unfilledQuantity,
-            tx,
-          );
-        }
-
-        const updated = await this.tradingRepo.updateOrderStatus(
-          orderId,
-          OrderStatus.CANCELLED,
-          {},
-          tx,
-          );
-
         const wallet = await this.tradingRepo.findWalletByUserId(userId);
-        await this.tradingRepo.createTransaction(
-          wallet!.id,
-          TransactionType.ORDER_CANCEL,
-          0,
-          `${order.type} ${unfilledQuantity} × ${order.stock.symbol} — CANCELLED`,
-          orderId,
-          tx,
-        );
-
-        return updated;
+        await releaseAndCancelOrder(this.tradingRepo, tx, order, wallet!.id);
+        return this.tradingRepo.findOrderById(orderId, tx);
       });
     });
 

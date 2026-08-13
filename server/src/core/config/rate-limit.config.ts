@@ -11,7 +11,7 @@
 export const RATE_LIMITS = {
   // Auth endpoints
   LOGIN: {
-    limit: 5,
+    limit: 10,
     ttl: 900_000, // 15 minutes in ms
   },
   REGISTER: {
