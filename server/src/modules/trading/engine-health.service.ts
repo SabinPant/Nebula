@@ -32,6 +32,11 @@ export class EngineHealthService implements OnModuleInit, OnModuleDestroy {
   // corrects it within HEALTH_FETCH_TIMEOUT_MS either way.
   private engineUp = true;
 
+  // Null until the first poll completes — distinguishes "never checked
+  // yet" from "checked a while ago" for callers like Admin's system
+  // status panel (getEngineStatus's lastChecked field).
+  private lastCheckedAt: Date | null = null;
+
   private pollTimer: NodeJS.Timeout | undefined;
 
   // Guards against overlapping polls. If a health check takes longer than
@@ -91,6 +96,15 @@ export class EngineHealthService implements OnModuleInit, OnModuleDestroy {
   }
 
   /**
+   * Returns when the engine's health was last actually polled — null
+   * only before the very first poll has resolved (a brief window right
+   * at server startup). Read-only cache access, same as isEngineUp().
+   */
+  getLastCheckedAt(): Date | null {
+    return this.lastCheckedAt;
+  }
+
+  /**
    * Fetches the engine's health endpoint with a hard timeout and updates
    * the cached status. Logs only on a state transition (up→down or
    * down→up), never on every poll — at a 5s interval that would otherwise
@@ -117,6 +131,7 @@ export class EngineHealthService implements OnModuleInit, OnModuleDestroy {
       }
 
       this.engineUp = isUp;
+      this.lastCheckedAt = new Date();
 
       if (isUp !== wasUp) {
         if (isUp) {

@@ -59,6 +59,13 @@ export class MarketRepository {
   /**
    * Updates a stock's current price and halt status.
    * Called by the gateway after each price tick from the engine.
+   *
+   * haltReason is always set explicitly (to the given value when halted,
+   * to null otherwise) — never conditionally omitted. A previous version
+   * used `...(haltReason ? { haltReason } : {})`, which left a stale
+   * reason string in place whenever isHalted flipped back to false,
+   * since an omitted key updates nothing. A stock that has recovered
+   * from its circuit breaker must not keep showing an old halt reason.
    */
   async updateStockPrice(
     stockId: string,
@@ -71,7 +78,7 @@ export class MarketRepository {
       data: {
         currentPrice,
         isHalted,
-        ...(haltReason ? { haltReason } : {}),
+        haltReason: isHalted ? (haltReason ?? null) : null,
       },
     });
   }

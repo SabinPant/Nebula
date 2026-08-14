@@ -94,6 +94,24 @@ function TopupsIcon({ active }: { active: boolean }) {
   );
 }
 
+function FlagsIcon({ active }: { active: boolean }) {
+  return (
+    <svg
+      className={iconClass(active)}
+      fill="none"
+      viewBox="0 0 24 24"
+      stroke="currentColor"
+      strokeWidth={1.75}
+    >
+      <path
+        strokeLinecap="round"
+        strokeLinejoin="round"
+        d="M5.25 3.75v16.5m0-13.5c2.25-1.5 4.5-1.5 6.75 0s4.5 1.5 6.75 0v9c-2.25 1.5-4.5 1.5-6.75 0s-4.5-1.5-6.75 0v-9z"
+      />
+    </svg>
+  );
+}
+
 function AuditIcon({ active }: { active: boolean }) {
   return (
     <svg
@@ -168,6 +186,11 @@ const navItems: NavItem[] = [
     label: "Top-Ups",
     to: "/admin/topups",
     icon: (active) => <TopupsIcon active={active} />,
+  },
+  {
+    label: "Flags",
+    to: "/admin/flags",
+    icon: (active) => <FlagsIcon active={active} />,
   },
   {
     label: "Audit Log",

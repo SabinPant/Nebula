@@ -12,7 +12,8 @@
  * reject — moved here from BrokerController in Sprint 13).
  * Imports TradingModule for TradingRepository — user suspension cancels
  * pending orders via the same order-cancellation.helper.ts logic
- * TradingService.cancelOrder() uses, rather than reimplementing it.
+ * TradingService.cancelOrder() uses, rather than reimplementing it —
+ * and for EngineHealthService, reused by getEngineStatus.
  * TokenStorage and RedisClient come from SharedModule/AppModule, both
  * genuinely @Global() providers. PrismaService is registered directly
  * in this module's own providers instead — @Global() on AppModule only

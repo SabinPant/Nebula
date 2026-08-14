@@ -1,16 +1,21 @@
 /**
  * Admin Service
  *
- * Business logic for the admin panel's user management: paginated user
- * listing, suspension (with order cancellation), and unsuspension.
+ * Business logic for the admin panel: paginated user listing, suspension
+ * (with order cancellation) and unsuspension, top-up oversight and override,
+ * system-wide audit log, suspicious-flag review (resolve/dismiss), and a
+ * read-only system status snapshot.
  *
- * No try/catch — throws typed HttpExceptions, caught by the global filter.
+ * No try/catch except getEngineStatus's DB/Redis pings (see its own
+ * docstring) — every other method throws typed HttpExceptions, caught by
+ * the global filter.
  */
 
 import { Injectable, NotFoundException, BadRequestException } from '@nestjs/common';
 import type Redis from 'ioredis';
 import { AdminRepository, type UserListFilters } from './admin.repository';
 import { TradingRepository } from '../trading/trading.repository';
+import { EngineHealthService } from '../trading/engine-health.service';
 import { PrismaService } from '../../core/database/prisma.service';
 import { RedisClient } from '../../core/database/redis.client';
 import { TokenStorage } from '../../shared/utils/token-storage';
@@ -19,9 +24,10 @@ import { releaseAndCancelOrder } from '../trading/order-cancellation.helper';
 import { buildPageResponse } from '../../shared/utils/paginate';
 import { formatCurrency } from '../../shared/utils/currency';
 import { ErrorCodes } from '../../shared/constants/errors';
-import { OrderStyle, TransactionType, UserType } from '@prisma/client';
+import { FlagStatus, OrderStyle, TransactionType, UserType } from '@prisma/client';
 import { EventEmitter2 } from '@nestjs/event-emitter';
 import type { AdminTopupDto } from './dto/admin-topup.dto';
+import type { ResolveFlagDto } from './dto/resolve-flag.dto';
 import { z } from 'zod';
 
 // Mirrors TradingService's CancelOrderMessageSchema exactly — same
@@ -38,6 +44,7 @@ export class AdminService {
   constructor(
     private readonly adminRepository: AdminRepository,
     private readonly tradingRepo: TradingRepository,
+    private readonly engineHealthService: EngineHealthService,
     private readonly prisma: PrismaService,
     redisClient: RedisClient,
     private readonly tokenStorage: TokenStorage,
@@ -383,6 +390,139 @@ export class AdminService {
     }));
 
     return buildPageResponse(data, totalCount, safePage, safeLimit);
+  }
+
+  /**
+   * Returns page-based paginated flags across ALL brokers/traders,
+   * optionally filtered by status.
+   */
+  async getFlags(page: number = 1, limit: number = 20, status?: FlagStatus) {
+    const safePage = Math.max(page, 1);
+    const safeLimit = Math.min(Math.max(limit, 1), 50);
+    const skip = (safePage - 1) * safeLimit;
+
+    const [flags, totalCount] = await Promise.all([
+      this.adminRepository.findFlags(skip, safeLimit, status),
+      this.adminRepository.countFlags(status),
+    ]);
+
+    const data = flags.map((flag) => ({
+      flagId: flag.id,
+      traderId: flag.trader.id,
+      traderName: flag.trader.displayName,
+      traderEmail: flag.trader.email,
+      brokerId: flag.broker.id,
+      brokerName: flag.broker.displayName,
+      brokerEmail: flag.broker.email,
+      reason: flag.reason,
+      note: flag.note,
+      status: flag.status,
+      resolvedBy: flag.resolvedBy,
+      resolvedAt: flag.resolvedAt,
+      resolution: flag.resolution,
+      createdAt: flag.createdAt,
+    }));
+
+    return buildPageResponse(data, totalCount, safePage, safeLimit);
+  }
+
+  /**
+   * Resolves or dismisses an OPEN flag: records the admin's decision
+   * (status, resolution note, who, when) and writes an audit log entry.
+   * Only OPEN flags can be transitioned — a flag already RESOLVED or
+   * DISMISSED cannot be re-decided, matching the same one-time-review
+   * shape as BrokerService.approveApplication/rejectApplication's
+   * APPLICATION_ALREADY_REVIEWED guard on BrokerApplication.status.
+   *
+   * Action name is derived from the target status (FLAG_RESOLVED or
+   * FLAG_DISMISSED) rather than a single generic FLAG_REVIEWED, so the
+   * audit log and its action filter dropdown can distinguish the two
+   * outcomes at a glance — consistent with USER_SUSPENDED/USER_UNSUSPENDED
+   * being separate actions rather than one USER_STATUS_CHANGED.
+   */
+  async resolveFlag(flagId: string, adminId: string, dto: ResolveFlagDto) {
+    const flag = await this.adminRepository.findFlagById(flagId);
+    if (!flag) {
+      throw new NotFoundException({
+        code: ErrorCodes.NOT_FOUND,
+        message: 'Flag not found',
+      });
+    }
+
+    if (flag.status !== FlagStatus.OPEN) {
+      throw new BadRequestException({
+        code: 'FLAG_ALREADY_RESOLVED',
+        message: 'This flag has already been reviewed',
+      });
+    }
+
+    const resolvedAt = new Date();
+
+    await this.adminRepository.updateFlagStatus(flagId, {
+      status: dto.status,
+      resolvedBy: adminId,
+      resolvedAt,
+      resolution: dto.resolution,
+    });
+
+    await this.adminRepository.createAuditLog({
+      userId: adminId,
+      action: dto.status === FlagStatus.RESOLVED ? 'FLAG_RESOLVED' : 'FLAG_DISMISSED',
+      metadata: {
+        flagId,
+        traderId: flag.traderId,
+        brokerId: flag.brokerId,
+        resolution: dto.resolution,
+      },
+    });
+
+    return { message: `Flag ${dto.status.toLowerCase()} successfully` };
+  }
+
+  /**
+   * Returns a read-only system status snapshot for the Admin dashboard:
+   * engine health (from the same cached EngineHealthService the order-
+   * placement gate reads — never a second live poll of the engine),
+   * plus a quick direct DB/Redis ping. Mirrors HealthController's own
+   * ping pattern (`SELECT 1` / `.ping()`, each wrapped so a failure
+   * degrades to false rather than throwing) — this is deliberately the
+   * one place in AdminService with try/catch, for the same reason
+   * HealthController has it: an infra reachability check, not domain
+   * business logic, so a failed ping is data to report, not an error to
+   * propagate as a 500.
+   *
+   * tradingHalted is always false for now — there is no admin engine
+   * start/stop control yet (CLAUDE.md's Sprint 13 admin engine controls
+   * are POST /admin/engine/start|stop, explicitly out of scope here).
+   * The field stays in the response shape so the frontend and any
+   * future start/stop feature don't need a breaking response change.
+   */
+  async getEngineStatus() {
+    let dbConnected = false;
+    try {
+      await this.prisma.$queryRaw`SELECT 1`;
+      dbConnected = true;
+    } catch {
+      dbConnected = false;
+    }
+
+    let redisConnected = false;
+    try {
+      await this.redis.ping();
+      redisConnected = true;
+    } catch {
+      redisConnected = false;
+    }
+
+    const lastChecked = this.engineHealthService.getLastCheckedAt();
+
+    return {
+      engineUp: this.engineHealthService.isEngineUp(),
+      dbConnected,
+      redisConnected,
+      lastChecked: lastChecked ? lastChecked.toISOString() : null,
+      tradingHalted: false,
+    };
   }
 
   /**

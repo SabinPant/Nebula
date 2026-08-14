@@ -14,6 +14,14 @@ interface AdminStats {
   totalAuditEvents: number;
 }
 
+interface EngineStatus {
+  engineUp: boolean;
+  dbConnected: boolean;
+  redisConnected: boolean;
+  lastChecked: string | null;
+  tradingHalted: boolean;
+}
+
 interface Stock {
   id: string;
   symbol: string;
@@ -40,6 +48,7 @@ const ACTION_LABELS: Record<string, string> = {
 
 const TOP_STOCKS_COUNT = 5;
 const RECENT_ACTIVITY_COUNT = 5;
+const ENGINE_STATUS_POLL_MS = 10_000;
 
 function formatDate(dateString: string): string {
   return new Date(dateString).toLocaleDateString("en-US", {
@@ -48,6 +57,56 @@ function formatDate(dateString: string): string {
     hour: "2-digit",
     minute: "2-digit",
   });
+}
+
+function formatTime(dateString: string): string {
+  return new Date(dateString).toLocaleTimeString("en-US", {
+    hour: "2-digit",
+    minute: "2-digit",
+    second: "2-digit",
+  });
+}
+
+function StatusDot({ ok }: { ok: boolean }) {
+  const color = ok ? "#16a34a" : "#dc2626";
+  return (
+    <span className="relative flex items-center justify-center w-2.5 h-2.5">
+      <span
+        className="absolute inline-flex h-full w-full rounded-full opacity-75 animate-ping"
+        style={{ backgroundColor: color }}
+      />
+      <span
+        className="relative inline-flex rounded-full w-1.5 h-1.5"
+        style={{ backgroundColor: color }}
+      />
+    </span>
+  );
+}
+
+function StatusRow({
+  label,
+  ok,
+  onLabel,
+  offLabel,
+}: {
+  label: string;
+  ok: boolean;
+  onLabel: string;
+  offLabel: string;
+}) {
+  return (
+    <div className="flex items-center justify-between py-2">
+      <span className="text-sm text-gray-600">{label}</span>
+      <span
+        className={`inline-flex items-center gap-2 text-xs font-medium px-2 py-0.5 rounded ${
+          ok ? "bg-green-100 text-green-700" : "bg-red-100 text-red-700"
+        }`}
+      >
+        <StatusDot ok={ok} />
+        {ok ? onLabel : offLabel}
+      </span>
+    </div>
+  );
 }
 
 export function AdminDashboard() {
@@ -69,10 +128,20 @@ export function AdminDashboard() {
   const [activityLoading, setActivityLoading] = useState(true);
   const [activityError, setActivityError] = useState("");
 
+  const [engineStatus, setEngineStatus] = useState<EngineStatus | null>(null);
+  const [engineStatusLoading, setEngineStatusLoading] = useState(true);
+  const [engineStatusError, setEngineStatusError] = useState("");
+
   useEffect(() => {
     fetchStats();
     fetchTopStocks();
     fetchActivity();
+  }, []);
+
+  useEffect(() => {
+    fetchEngineStatus();
+    const interval = setInterval(fetchEngineStatus, ENGINE_STATUS_POLL_MS);
+    return () => clearInterval(interval);
   }, []);
 
   async function fetchStats() {
@@ -140,6 +209,19 @@ export function AdminDashboard() {
     }
   }
 
+  async function fetchEngineStatus() {
+    setEngineStatusError("");
+
+    try {
+      const { data } = await api.get("/admin/engine/status");
+      setEngineStatus(data);
+    } catch {
+      setEngineStatusError("Failed to load system status.");
+    } finally {
+      setEngineStatusLoading(false);
+    }
+  }
+
   return (
     <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8 sm:py-12">
       <h1 className="text-2xl font-bold text-gray-900">
@@ -192,6 +274,51 @@ export function AdminDashboard() {
           </Card>
         </div>
       )}
+
+      {/* System Status */}
+      <div className="mt-8">
+        <Card title="System Status">
+          {engineStatusError ? (
+            <Alert variant="error">{engineStatusError}</Alert>
+          ) : engineStatusLoading ? (
+            <div className="flex items-center justify-center py-8">
+              <div className="w-5 h-5 border-2 border-primary-200 border-t-primary-700 rounded-full animate-spin" />
+            </div>
+          ) : (
+            <div className="divide-y divide-gray-100">
+              <StatusRow
+                label="Engine"
+                ok={engineStatus?.engineUp ?? false}
+                onLabel="Online"
+                offLabel="Offline"
+              />
+              <StatusRow
+                label="Database"
+                ok={engineStatus?.dbConnected ?? false}
+                onLabel="Connected"
+                offLabel="Disconnected"
+              />
+              <StatusRow
+                label="Redis"
+                ok={engineStatus?.redisConnected ?? false}
+                onLabel="Connected"
+                offLabel="Disconnected"
+              />
+              <div className="flex items-center justify-between pt-2 mt-1">
+                <span className="text-xs text-gray-400">
+                  Last checked
+                  {engineStatus?.lastChecked
+                    ? `: ${formatTime(engineStatus.lastChecked)}`
+                    : " — never"}
+                </span>
+                <span className="text-xs text-gray-400">
+                  Refreshes every 10s
+                </span>
+              </div>
+            </div>
+          )}
+        </Card>
+      </div>
 
       {/* Row 2 — Chart (2/3) + Recent Activity (1/3) */}
       {!loading && !error && (

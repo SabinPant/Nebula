@@ -10,7 +10,13 @@
 
 import { Injectable } from '@nestjs/common';
 import { PrismaService } from '../../core/database/prisma.service';
-import { OrderStatus, Prisma, TopUpStatus, UserType } from '@prisma/client';
+import {
+  FlagStatus,
+  OrderStatus,
+  Prisma,
+  TopUpStatus,
+  UserType,
+} from '@prisma/client';
 import { getStartOfWeekNepal } from '../../shared/utils/date';
 
 export interface UserListFilters {
@@ -282,5 +288,64 @@ export class AdminRepository {
    */
   async countAuditLogs(action?: string): Promise<number> {
     return this.prisma.auditLog.count({ where: action ? { action } : {} });
+  }
+
+  /**
+   * Returns page-based paginated flags across ALL brokers/traders,
+   * optionally filtered by status, joined with trader and broker names
+   * for display — same shape as findAllTopUps above.
+   */
+  async findFlags(skip: number, limit: number, status?: FlagStatus) {
+    return this.prisma.suspiciousFlag.findMany({
+      where: status ? { status } : {},
+      orderBy: { createdAt: 'desc' },
+      skip,
+      take: limit,
+      include: {
+        trader: { select: { id: true, displayName: true, email: true } },
+        broker: { select: { id: true, displayName: true, email: true } },
+      },
+    });
+  }
+
+  /**
+   * Returns the total number of flags matching the given status filter
+   * (or all flags if no filter). Used for page-based pagination.
+   */
+  async countFlags(status?: FlagStatus): Promise<number> {
+    return this.prisma.suspiciousFlag.count({ where: status ? { status } : {} });
+  }
+
+  /**
+   * Returns a single flag by ID, including trader/broker names — used
+   * by resolveFlag to validate the flag exists and is still OPEN before
+   * transitioning it.
+   */
+  async findFlagById(id: string) {
+    return this.prisma.suspiciousFlag.findUnique({
+      where: { id },
+      include: {
+        trader: { select: { id: true, displayName: true, email: true } },
+        broker: { select: { id: true, displayName: true, email: true } },
+      },
+    });
+  }
+
+  /**
+   * Transitions a flag to RESOLVED or DISMISSED, recording who decided,
+   * when, and why. Mirrors BrokerApplication.updateStatus's shape
+   * (status + reviewer + timestamp + note) for the same kind of
+   * one-time admin decision on a record another actor created.
+   */
+  async updateFlagStatus(
+    id: string,
+    data: {
+      status: typeof FlagStatus.RESOLVED | typeof FlagStatus.DISMISSED;
+      resolvedBy: string;
+      resolvedAt: Date;
+      resolution: string;
+    },
+  ) {
+    return this.prisma.suspiciousFlag.update({ where: { id }, data });
   }
 }

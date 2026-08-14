@@ -33,7 +33,8 @@ import { BrokerService } from '../broker/broker.service';
 import { AdminService } from './admin.service';
 import { SuspendUserDto } from './dto/suspend-user.dto';
 import { AdminTopupDto } from './dto/admin-topup.dto';
-import { BrokerApplicationStatus, UserType } from '@prisma/client';
+import { ResolveFlagDto } from './dto/resolve-flag.dto';
+import { BrokerApplicationStatus, FlagStatus, UserType } from '@prisma/client';
 
 @Controller('admin')
 @UseGuards(JwtAuthGuard, AdminGuard)
@@ -195,5 +196,54 @@ export class AdminController {
       limit ? parseInt(limit, 10) : 20,
       action,
     );
+  }
+
+  /**
+   * Returns a page-based paginated list of ALL suspicious flags across
+   * every broker/trader, optionally filtered by status.
+   */
+  @Get('flags')
+  async getFlags(
+    @Query('page') page?: string,
+    @Query('limit') limit?: string,
+    @Query('status') status?: string,
+  ) {
+    const validStatus =
+      status && (Object.values(FlagStatus) as string[]).includes(status)
+        ? (status as FlagStatus)
+        : undefined;
+
+    return this.adminService.getFlags(
+      page ? parseInt(page, 10) : 1,
+      limit ? parseInt(limit, 10) : 20,
+      validStatus,
+    );
+  }
+
+  /**
+   * Resolves or dismisses an OPEN flag with a mandatory decision note.
+   * adminId comes from the authenticated JWT — same pattern as
+   * suspendUser/unsuspendUser and approveApplication/rejectApplication
+   * above, never from the request body.
+   */
+  @Patch('flags/:id/resolve')
+  @HttpCode(HttpStatus.OK)
+  async resolveFlag(
+    @Param('id') id: string,
+    @Body() dto: ResolveFlagDto,
+    @Req() request: Request,
+  ) {
+    const adminId = (request.user as { id: string }).id;
+    return this.adminService.resolveFlag(id, adminId, dto);
+  }
+
+  /**
+   * Returns a read-only system status snapshot (engine health, DB/Redis
+   * connectivity). No start/stop controls — see admin.service.ts's
+   * getEngineStatus docstring.
+   */
+  @Get('engine/status')
+  async getEngineStatus() {
+    return this.adminService.getEngineStatus();
   }
 }
