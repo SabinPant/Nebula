@@ -46,6 +46,12 @@ import { TraderDetail } from "../pages/broker/TraderDetail";
 import { TopUpManagement } from "../pages/broker/TopUpManagement";
 import { FlagManagement } from "../pages/broker/FlagManagement";
 import { ActivityLog } from "../pages/broker/ActivityLog";
+import { AdminLayout } from "../components/layout/AdminLayout";
+import { AdminDashboard } from "../pages/admin/Dashboard";
+import { AdminUsers } from "../pages/admin/Users";
+import { AdminBrokerApplications } from "../pages/admin/BrokerApplications";
+import { AdminTopUps } from "../pages/admin/TopUps";
+import { AdminAuditLog } from "../pages/admin/AuditLog";
 
 // ─── Guard Components ────────────────────────────────────────────────────
 
@@ -109,23 +115,18 @@ function BrokerGuard() {
   return <Outlet />;
 }
 
-function AdminPlaceholder() {
-  return (
-    <div className="min-h-screen flex items-center justify-center bg-surface-50 px-6">
-      <div className="max-w-lg text-center space-y-3">
-        <p className="text-sm font-semibold uppercase tracking-[0.2em] text-primary-600">
-          Admin
-        </p>
-        <h1 className="text-3xl font-bold text-gray-900">
-          Admin dashboard coming soon
-        </h1>
-        <p className="text-gray-600">
-          This route is reserved for Sprint 13. Broker and trader dashboards are
-          available now.
-        </p>
-      </div>
-    </div>
-  );
+function AdminGuard() {
+  const { isAuthenticated, user } = useAuthStore();
+
+  if (!isAuthenticated) {
+    return <Navigate to="/login" replace />;
+  }
+
+  if (user?.userType !== "ADMIN") {
+    return <Navigate to={getDashboardPath(user?.userType)} replace />;
+  }
+
+  return <Outlet />;
 }
 
 function OldMarketRedirect() {
@@ -190,10 +191,21 @@ export const router = createBrowserRouter([
     ],
   },
 
-  // Admin placeholder — reserved for Sprint 13
+  // Admin panel routes
   {
-    path: "/admin",
-    element: <AdminPlaceholder />,
+    element: <AdminGuard />,
+    children: [
+      {
+        element: <AdminLayout />,
+        children: [
+          { path: "/admin", element: <AdminDashboard /> },
+          { path: "/admin/users", element: <AdminUsers /> },
+          { path: "/admin/brokers", element: <AdminBrokerApplications /> },
+          { path: "/admin/topups", element: <AdminTopUps /> },
+          { path: "/admin/audit", element: <AdminAuditLog /> },
+        ],
+      },
+    ],
   },
 
   // Fully onboarded only — wrapped in the sidebar layout

@@ -33,7 +33,7 @@ import { BrokerService } from '../broker/broker.service';
 import { AdminService } from './admin.service';
 import { SuspendUserDto } from './dto/suspend-user.dto';
 import { AdminTopupDto } from './dto/admin-topup.dto';
-import { UserType } from '@prisma/client';
+import { BrokerApplicationStatus, UserType } from '@prisma/client';
 
 @Controller('admin')
 @UseGuards(JwtAuthGuard, AdminGuard)
@@ -44,19 +44,39 @@ export class AdminController {
   ) {}
 
   /**
+   * Returns all broker applications, optionally filtered by status.
+   * Not paginated — see broker.service.ts's getAllApplications for why.
+   */
+  @Get('broker-applications')
+  async getBrokerApplications(@Query('status') status?: string) {
+    const validStatus =
+      status && (Object.values(BrokerApplicationStatus) as string[]).includes(status)
+        ? (status as BrokerApplicationStatus)
+        : undefined;
+
+    return this.brokerService.getAllApplications(validStatus);
+  }
+
+  /**
    * Approves a broker application and sends a setup invitation.
    * Moved from BrokerController — see broker.service.ts for the
    * actual approval logic (invitation creation, email, notifications).
+   * adminId comes from the authenticated JWT (request.user), never the
+   * request body — same pattern as suspendUser/unsuspendUser below. The
+   * body previously accepted a client-supplied adminId, which let any
+   * caller attribute the approval to an arbitrary user id in AuditLog.
    */
   @Patch('broker-applications/:id/approve')
   @HttpCode(HttpStatus.OK)
   async approveApplication(
     @Param('id') id: string,
-    @Body() body: { adminId: string; brokerNumber: string; adminNote?: string },
+    @Body() body: { brokerNumber: string; adminNote?: string },
+    @Req() request: Request,
   ) {
+    const adminId = (request.user as { id: string }).id;
     return this.brokerService.approveApplication(
       id,
-      body.adminId,
+      adminId,
       body.brokerNumber,
       body.adminNote,
     );
@@ -66,12 +86,15 @@ export class AdminController {
    * Rejects a broker application with a mandatory reason.
    * Moved from BrokerController — see broker.service.ts for the
    * actual rejection logic (notification, status update).
+   * adminId comes from the authenticated JWT — see approveApplication's
+   * comment above for why.
    */
   @Patch('broker-applications/:id/reject')
   @HttpCode(HttpStatus.OK)
   async rejectApplication(
     @Param('id') id: string,
-    @Body() body: { adminId: string; adminNote: string },
+    @Body() body: { adminNote: string },
+    @Req() request: Request,
   ) {
     if (!body.adminNote || body.adminNote.trim().length === 0) {
       throw new BadRequestException({
@@ -80,7 +103,8 @@ export class AdminController {
       });
     }
 
-    return this.brokerService.rejectApplication(id, body.adminId, body.adminNote);
+    const adminId = (request.user as { id: string }).id;
+    return this.brokerService.rejectApplication(id, adminId, body.adminNote);
   }
 
   /**

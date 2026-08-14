@@ -31,6 +31,7 @@ import { hashPassword } from '../../shared/utils/crypto';
 import { EventEmitter2 } from '@nestjs/event-emitter';
 import { Request } from 'express';
 import {
+  BrokerApplicationStatus,
   NotificationType,
   Prisma,
   TopUpStatus,
@@ -563,6 +564,29 @@ if (existingByPhone) {
     }));
 
     return buildPageResponse(mapped, totalCount, safePage, safeLimit);
+  }
+
+  /**
+   * Returns all broker applications, optionally filtered by status.
+   * Admin-only — used by the Admin panel's application review queue.
+   * Not paginated: application volume is low enough (manual review,
+   * one at a time) that a flat list matches every other Admin table
+   * in this codebase that doesn't yet need page-based pagination.
+   */
+  async getAllApplications(status?: BrokerApplicationStatus) {
+    const applications = await this.brokerRepository.findAll(status);
+
+    return applications.map((application) => ({
+      applicationId: application.id,
+      fullName: application.fullName,
+      email: application.email,
+      phone: application.phone,
+      status: application.status,
+      existingUserId: application.existingUserId,
+      adminNote: application.adminNote,
+      createdAt: application.createdAt,
+      reviewedAt: application.reviewedAt,
+    }));
   }
 
   /**
