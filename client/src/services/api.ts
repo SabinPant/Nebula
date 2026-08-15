@@ -95,7 +95,14 @@ api.interceptors.response.use(
       const { data } = await axios.post(
         `${import.meta.env.VITE_API_URL || 'http://localhost:3001/api/v1'}/auth/refresh`,
         {},
-        { withCredentials: true },
+        {
+          withCredentials: true,
+          // Required by the server as a CSRF guard — a cross-site page
+          // can't attach this header without triggering a CORS preflight,
+          // which only CORS_ORIGIN can pass. See auth.controller.ts's
+          // refresh() docstring for the full reasoning.
+          headers: { 'X-Requested-With': 'XMLHttpRequest' },
+        },
       );
 
       const newToken: string = data.accessToken;

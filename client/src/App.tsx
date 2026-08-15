@@ -26,10 +26,15 @@ function App() {
           import.meta.env.VITE_API_URL || "http://localhost:3001/api/v1";
 
         // Step 1: Refresh token via native fetch (bypasses Axios interceptor)
+        // X-Requested-With is required by the server as a CSRF guard on
+        // this endpoint — see server's auth.controller.ts refresh() docstring.
         const refreshRes = await fetch(`${API_BASE}/auth/refresh`, {
           method: "POST",
           credentials: "include",
-          headers: { "Content-Type": "application/json" },
+          headers: {
+            "Content-Type": "application/json",
+            "X-Requested-With": "XMLHttpRequest",
+          },
           body: JSON.stringify({}),
         });
 
