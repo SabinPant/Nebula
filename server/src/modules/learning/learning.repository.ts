@@ -58,12 +58,23 @@ export class LearningRepository {
   }
 
   /**
-   * Returns all articles including unpublished ones. For Admin panel use.
+   * Returns a page of articles including unpublished ones, for Admin
+   * panel use. Same ordering as the public findPublishedResources.
    */
-  async findAll(): Promise<LearningResource[]> {
+  async findAll(skip: number, limit: number): Promise<LearningResource[]> {
     return this.prisma.learningResource.findMany({
       orderBy: [{ order: 'asc' }, { createdAt: 'desc' }],
+      skip,
+      take: limit,
     });
+  }
+
+  /**
+   * Returns the total number of articles (published + unpublished).
+   * Used for page-based pagination to calculate totalPages.
+   */
+  async countAll(): Promise<number> {
+    return this.prisma.learningResource.count();
   }
 
   /**

@@ -14,6 +14,7 @@ import {
 } from '@nestjs/common';
 import { LearningResource, Prisma } from '@prisma/client';
 import { LearningRepository } from './learning.repository';
+import { buildPageResponse, type PagePaginatedResponse } from '../../shared/utils/paginate';
 
 const SLUG_PATTERN = /^[a-z0-9]+(?:-[a-z0-9]+)*$/;
 
@@ -53,10 +54,25 @@ export class LearningService {
   }
 
   /**
-   * Returns every article, including unpublished. Admin panel only.
+   * Returns a page-based paginated list of every article, including
+   * unpublished. Admin panel only — matches CLAUDE.md's page-based
+   * pagination rule for admin management lists (same shape as
+   * AdminService.getUsers/getTopUps/getAuditLogs).
    */
-  async getAllResources(): Promise<LearningResource[]> {
-    return this.learningRepository.findAll();
+  async getAllResources(
+    page: number = 1,
+    limit: number = 20,
+  ): Promise<PagePaginatedResponse<LearningResource>> {
+    const safePage = Math.max(page, 1);
+    const safeLimit = Math.min(Math.max(limit, 1), 50);
+    const skip = (safePage - 1) * safeLimit;
+
+    const [resources, totalCount] = await Promise.all([
+      this.learningRepository.findAll(skip, safeLimit),
+      this.learningRepository.countAll(),
+    ]);
+
+    return buildPageResponse(resources, totalCount, safePage, safeLimit);
   }
 
   /**

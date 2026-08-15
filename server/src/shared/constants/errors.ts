@@ -45,6 +45,9 @@ export const ErrorCodes = {
   // For Duplicate Phone number
   DUPLICATE_PHONE: 'DUPLICATE_PHONE',
 
+  // Learning resources
+  DUPLICATE_SLUG: 'DUPLICATE_SLUG',
+
   // File uploads
   UPLOAD_FAILED: 'UPLOAD_FAILED',
   INVALID_FILE_TYPE: 'INVALID_FILE_TYPE',

@@ -14,6 +14,10 @@
  * pending orders via the same order-cancellation.helper.ts logic
  * TradingService.cancelOrder() uses, rather than reimplementing it —
  * and for EngineHealthService, reused by getEngineStatus.
+ * Imports LearningModule for LearningService — the Admin learning-content
+ * CRUD routes delegate straight to the same service methods
+ * (getAllResources/createResource/updateResource/deleteResource) that
+ * Sprint 12 built and left unwired pending this task.
  * TokenStorage and RedisClient come from SharedModule/AppModule, both
  * genuinely @Global() providers. PrismaService is registered directly
  * in this module's own providers instead — @Global() on AppModule only
@@ -45,6 +49,7 @@ import { AdminRepository } from './admin.repository';
 import { AuthModule } from '../auth/auth.module';
 import { BrokerModule } from '../broker/broker.module';
 import { TradingModule } from '../trading/trading.module';
+import { LearningModule } from '../learning/learning.module';
 import { PrismaService } from '../../core/database/prisma.service';
 
 @Module({
@@ -62,6 +67,7 @@ import { PrismaService } from '../../core/database/prisma.service';
     AuthModule,
     BrokerModule,
     TradingModule,
+    LearningModule,
     EventEmitterModule.forRoot(),
   ],
   controllers: [AdminController],

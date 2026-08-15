@@ -16,6 +16,7 @@ import {
   BadRequestException,
   Body,
   Controller,
+  Delete,
   Get,
   HttpCode,
   HttpStatus,
@@ -31,9 +32,13 @@ import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 import { AdminGuard } from './guards/admin.guard';
 import { BrokerService } from '../broker/broker.service';
 import { AdminService } from './admin.service';
+import { LearningService } from '../learning/learning.service';
 import { SuspendUserDto } from './dto/suspend-user.dto';
 import { AdminTopupDto } from './dto/admin-topup.dto';
 import { ResolveFlagDto } from './dto/resolve-flag.dto';
+import { ReassignBrokerDto } from './dto/reassign-broker.dto';
+import { CreateLearningResourceDto } from './dto/create-learning-resource.dto';
+import { UpdateLearningResourceDto } from './dto/update-learning-resource.dto';
 import { BrokerApplicationStatus, FlagStatus, UserType } from '@prisma/client';
 
 @Controller('admin')
@@ -42,6 +47,7 @@ export class AdminController {
   constructor(
     private readonly brokerService: BrokerService,
     private readonly adminService: AdminService,
+    private readonly learningService: LearningService,
   ) {}
 
   /**
@@ -158,6 +164,22 @@ export class AdminController {
   }
 
   /**
+   * Reassigns a trader to a different broker. See admin.service.ts's
+   * reassignBroker for the verification flow (trader must be a TRADER,
+   * new broker must be an active BROKER).
+   */
+  @Patch('users/:userId/reassign-broker')
+  @HttpCode(HttpStatus.OK)
+  async reassignBroker(
+    @Param('userId') userId: string,
+    @Body() dto: ReassignBrokerDto,
+    @Req() request: Request,
+  ) {
+    const adminId = (request.user as { id: string }).id;
+    return this.adminService.reassignBroker(userId, dto.brokerId, adminId);
+  }
+
+  /**
    * Returns a page-based paginated list of ALL top-ups across every
    * broker/trader, including admin overrides.
    */
@@ -245,5 +267,56 @@ export class AdminController {
   @Get('engine/status')
   async getEngineStatus() {
     return this.adminService.getEngineStatus();
+  }
+
+  /**
+   * Returns a page-based paginated list of ALL learning resources,
+   * including unpublished ones. LearningService already has this logic
+   * from Sprint 12 (built for this exact wiring) — this controller only
+   * delegates.
+   */
+  @Get('learning')
+  async getLearningResources(
+    @Query('page') page?: string,
+    @Query('limit') limit?: string,
+  ) {
+    return this.learningService.getAllResources(
+      page ? parseInt(page, 10) : 1,
+      limit ? parseInt(limit, 10) : 20,
+    );
+  }
+
+  /**
+   * Creates a new learning resource. Slug format validated in
+   * LearningService.createResource.
+   */
+  @Post('learning')
+  @HttpCode(HttpStatus.CREATED)
+  async createLearningResource(@Body() dto: CreateLearningResourceDto) {
+    return this.learningService.createResource(dto);
+  }
+
+  /**
+   * Updates an existing learning resource. 404s via
+   * LearningService.getResourceById's existence check inside updateResource.
+   */
+  @Patch('learning/:id')
+  @HttpCode(HttpStatus.OK)
+  async updateLearningResource(
+    @Param('id') id: string,
+    @Body() dto: UpdateLearningResourceDto,
+  ) {
+    return this.learningService.updateResource(id, dto);
+  }
+
+  /**
+   * Deletes a learning resource. 404s via LearningService.deleteResource's
+   * existence check before the delete.
+   */
+  @Delete('learning/:id')
+  @HttpCode(HttpStatus.OK)
+  async deleteLearningResource(@Param('id') id: string) {
+    await this.learningService.deleteResource(id);
+    return { message: 'Learning resource deleted successfully' };
   }
 }

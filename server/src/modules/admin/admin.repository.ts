@@ -62,6 +62,8 @@ export class AdminRepository {
         isSuspended: true,
         suspendedReason: true,
         createdAt: true,
+        assignedBrokerId: true,
+        assignedBroker: { select: { id: true, displayName: true } },
         wallet: {
           select: {
             availableBalance: true,
@@ -84,13 +86,17 @@ export class AdminRepository {
   }
 
   /**
-   * Returns a single user by ID, including their wallet. Excludes
-   * soft-deleted users. Returns null if not found.
+   * Returns a single user by ID, including their wallet and (for
+   * traders) their currently assigned broker. Excludes soft-deleted
+   * users. Returns null if not found.
    */
   async findUserById(id: string) {
     return this.prisma.user.findFirst({
       where: { id, deletedAt: null },
-      include: { wallet: true },
+      include: {
+        wallet: true,
+        assignedBroker: { select: { id: true, displayName: true } },
+      },
     });
   }
 
@@ -165,6 +171,30 @@ export class AdminRepository {
   async findTraderById(id: string) {
     return this.prisma.user.findFirst({
       where: { id, userType: UserType.TRADER, deletedAt: null },
+    });
+  }
+
+  /**
+   * Returns a single active (non-suspended) broker by ID, restricted to
+   * userType BROKER. Used by reassignBroker to verify the new broker
+   * before assignment. Returns null if not found, soft-deleted, not a
+   * broker, or suspended.
+   */
+  async findActiveBrokerById(id: string) {
+    return this.prisma.user.findFirst({
+      where: { id, userType: UserType.BROKER, isSuspended: false, deletedAt: null },
+    });
+  }
+
+  /**
+   * Updates a trader's assignedBrokerId. Caller (AdminService) has
+   * already verified the trader exists and is a TRADER, and that the
+   * new broker exists, is a BROKER, and is not suspended.
+   */
+  async reassignBroker(traderId: string, brokerId: string) {
+    return this.prisma.user.update({
+      where: { id: traderId },
+      data: { assignedBrokerId: brokerId },
     });
   }
 

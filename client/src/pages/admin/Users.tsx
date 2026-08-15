@@ -21,11 +21,20 @@ interface User {
   isSuspended: boolean;
   suspendedReason: string | null;
   createdAt: string;
+  assignedBrokerId: string | null;
+  assignedBrokerName: string | null;
   wallet: {
     availableBalancePaise: number;
     totalDepositedPaise: number;
   } | null;
   orderCount: number;
+}
+
+interface ActiveBroker {
+  id: string;
+  displayName: string | null;
+  brokerNumber: string | null;
+  email: string;
 }
 
 interface Pagination {
@@ -55,6 +64,14 @@ export function AdminUsers() {
   const [actionError, setActionError] = useState("");
   const [actionSubmitting, setActionSubmitting] = useState(false);
   const [busyUserId, setBusyUserId] = useState<string | null>(null);
+
+  // Reassign broker modal state
+  const [reassignTarget, setReassignTarget] = useState<User | null>(null);
+  const [activeBrokers, setActiveBrokers] = useState<ActiveBroker[]>([]);
+  const [brokersLoading, setBrokersLoading] = useState(false);
+  const [selectedBrokerId, setSelectedBrokerId] = useState("");
+  const [reassignError, setReassignError] = useState("");
+  const [reassignSubmitting, setReassignSubmitting] = useState(false);
 
   useEffect(() => {
     fetchUsers(1);
@@ -143,6 +160,59 @@ export function AdminUsers() {
       setError("Failed to unsuspend user.");
     } finally {
       setBusyUserId(null);
+    }
+  }
+
+  async function openReassignModal(user: User) {
+    setReassignTarget(user);
+    setSelectedBrokerId(user.assignedBrokerId ?? "");
+    setReassignError("");
+    setBrokersLoading(true);
+
+    try {
+      const { data } = await api.get("/auth/onboarding/brokers");
+      setActiveBrokers(data);
+    } catch {
+      setReassignError("Failed to load brokers.");
+    } finally {
+      setBrokersLoading(false);
+    }
+  }
+
+  const closeReassignModal = useCallback(() => {
+    setReassignTarget(null);
+    setActiveBrokers([]);
+    setSelectedBrokerId("");
+    setReassignError("");
+  }, []);
+
+  useEffect(() => {
+    if (!reassignTarget) return;
+    function handleKeyDown(e: KeyboardEvent) {
+      if (e.key === "Escape") closeReassignModal();
+    }
+    window.addEventListener("keydown", handleKeyDown);
+    return () => window.removeEventListener("keydown", handleKeyDown);
+  }, [reassignTarget, closeReassignModal]);
+
+  async function handleReassignConfirm() {
+    if (!reassignTarget || !selectedBrokerId) return;
+
+    setReassignSubmitting(true);
+    setReassignError("");
+
+    try {
+      await api.patch(`/admin/users/${reassignTarget.id}/reassign-broker`, {
+        brokerId: selectedBrokerId,
+      });
+      closeReassignModal();
+      fetchUsers(pagination?.page ?? 1);
+    } catch (err: any) {
+      setReassignError(
+        err.response?.data?.message || "Failed to reassign broker.",
+      );
+    } finally {
+      setReassignSubmitting(false);
     }
   }
 
@@ -249,6 +319,11 @@ export function AdminUsers() {
                         <td className="px-4 py-3 text-gray-600">{u.email}</td>
                         <td className="px-4 py-3 text-gray-600 text-xs">
                           {u.userType}
+                          {u.userType === "TRADER" && (
+                            <p className="text-gray-400 mt-0.5">
+                              {u.assignedBrokerName || "Unassigned"}
+                            </p>
+                          )}
                         </td>
                         <td className="px-4 py-3">
                           <span
@@ -267,26 +342,37 @@ export function AdminUsers() {
                             : "—"}
                         </td>
                         <td className="px-4 py-3 text-right">
-                          {u.userType === "ADMIN" ? null : u.isSuspended ? (
-                            <Button
-                              variant="secondary"
-                              size="sm"
-                              disabled={busyUserId === u.id}
-                              onClick={() => handleUnsuspend(u)}
-                            >
-                              {busyUserId === u.id
-                                ? "Working..."
-                                : "Unsuspend"}
-                            </Button>
-                          ) : (
-                            <Button
-                              variant="danger"
-                              size="sm"
-                              onClick={() => openSuspendModal(u)}
-                            >
-                              Suspend
-                            </Button>
-                          )}
+                          <div className="flex justify-end gap-2">
+                            {u.userType === "TRADER" && (
+                              <Button
+                                variant="secondary"
+                                size="sm"
+                                onClick={() => openReassignModal(u)}
+                              >
+                                Reassign
+                              </Button>
+                            )}
+                            {u.userType === "ADMIN" ? null : u.isSuspended ? (
+                              <Button
+                                variant="secondary"
+                                size="sm"
+                                disabled={busyUserId === u.id}
+                                onClick={() => handleUnsuspend(u)}
+                              >
+                                {busyUserId === u.id
+                                  ? "Working..."
+                                  : "Unsuspend"}
+                              </Button>
+                            ) : (
+                              <Button
+                                variant="danger"
+                                size="sm"
+                                onClick={() => openSuspendModal(u)}
+                              >
+                                Suspend
+                              </Button>
+                            )}
+                          </div>
                         </td>
                       </tr>
                     ))}
@@ -333,9 +419,27 @@ export function AdminUsers() {
                           : "—"}
                       </p>
                     </div>
+                    {u.userType === "TRADER" && (
+                      <div className="col-span-2">
+                        <p className="text-gray-500">Broker</p>
+                        <p className="text-gray-900 font-medium">
+                          {u.assignedBrokerName || "Unassigned"}
+                        </p>
+                      </div>
+                    )}
                   </div>
                   {u.userType !== "ADMIN" && (
-                    <div className="pt-1">
+                    <div className="pt-1 flex gap-2">
+                      {u.userType === "TRADER" && (
+                        <Button
+                          variant="secondary"
+                          size="sm"
+                          className="w-full"
+                          onClick={() => openReassignModal(u)}
+                        >
+                          Reassign
+                        </Button>
+                      )}
                       {u.isSuspended ? (
                         <Button
                           variant="secondary"
@@ -443,6 +547,86 @@ export function AdminUsers() {
                     }
                   >
                     {actionSubmitting ? "Suspending..." : "Confirm Suspend"}
+                  </Button>
+                </div>
+              </div>
+            </Card>
+          </div>
+        </div>
+      )}
+
+      {/* Reassign Broker Modal */}
+      {reassignTarget && (
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center bg-gray-900/40 px-4"
+          onClick={closeReassignModal}
+          role="presentation"
+        >
+          <div
+            className="w-full max-w-md"
+            onClick={(e) => e.stopPropagation()}
+            role="dialog"
+            aria-modal="true"
+            aria-label={`Reassign broker for ${reassignTarget.displayName || reassignTarget.email}`}
+          >
+            <Card
+              title={`Reassign Broker — ${reassignTarget.displayName || reassignTarget.email}`}
+            >
+              <div className="space-y-4">
+                <p className="text-sm text-gray-500">
+                  Current broker:{" "}
+                  <span className="font-medium text-gray-900">
+                    {reassignTarget.assignedBrokerName || "Unassigned"}
+                  </span>
+                </p>
+
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">
+                    New Broker
+                  </label>
+                  {brokersLoading ? (
+                    <p className="text-sm text-gray-400">Loading brokers...</p>
+                  ) : (
+                    <select
+                      value={selectedBrokerId}
+                      onChange={(e) => setSelectedBrokerId(e.target.value)}
+                      className="w-full rounded-md border border-gray-300 px-3 py-2 text-sm text-gray-900 shadow-sm focus:outline-none focus:ring-2 focus:ring-primary-500 focus:border-primary-500"
+                    >
+                      <option value="">Select a broker...</option>
+                      {activeBrokers.map((b) => (
+                        <option key={b.id} value={b.id}>
+                          {b.displayName || b.email}
+                          {b.brokerNumber ? ` (${b.brokerNumber})` : ""}
+                        </option>
+                      ))}
+                    </select>
+                  )}
+                </div>
+
+                {reassignError && (
+                  <Alert variant="error">{reassignError}</Alert>
+                )}
+
+                <div className="flex gap-2 justify-end">
+                  <Button
+                    variant="secondary"
+                    size="sm"
+                    onClick={closeReassignModal}
+                    disabled={reassignSubmitting}
+                  >
+                    Cancel
+                  </Button>
+                  <Button
+                    variant="primary"
+                    size="sm"
+                    onClick={handleReassignConfirm}
+                    disabled={
+                      !selectedBrokerId ||
+                      selectedBrokerId === reassignTarget.assignedBrokerId ||
+                      reassignSubmitting
+                    }
+                  >
+                    {reassignSubmitting ? "Reassigning..." : "Confirm Reassign"}
                   </Button>
                 </div>
               </div>

@@ -79,6 +79,8 @@ export class AdminService {
       isSuspended: user.isSuspended,
       suspendedReason: user.suspendedReason,
       createdAt: user.createdAt,
+      assignedBrokerId: user.assignedBrokerId,
+      assignedBrokerName: user.assignedBroker?.displayName ?? null,
       wallet: user.wallet
         ? {
             availableBalancePaise: user.wallet.availableBalance,
@@ -212,6 +214,59 @@ export class AdminService {
     });
 
     return { message: 'User unsuspended successfully' };
+  }
+
+  /**
+   * Reassigns a trader to a different broker. The trader keeps trading
+   * normally throughout — this only changes who they're assigned to for
+   * top-ups and broker-side monitoring (CLAUDE.md: "Reassign trader to
+   * different broker at any time").
+   *
+   * Both sides are verified before the update: the target user must be
+   * an existing TRADER (brokers/admins are never assigned a broker), and
+   * the new broker must be an existing, active (non-suspended) BROKER —
+   * the same "active broker" shape trader onboarding itself enforces via
+   * SelectBrokerDto.
+   */
+  async reassignBroker(traderId: string, brokerId: string, adminId: string) {
+    const trader = await this.adminRepository.findUserById(traderId);
+    if (!trader) {
+      throw new NotFoundException({
+        code: ErrorCodes.NOT_FOUND,
+        message: 'Trader not found',
+      });
+    }
+
+    if (trader.userType !== UserType.TRADER) {
+      throw new BadRequestException({
+        code: ErrorCodes.VALIDATION_ERROR,
+        message: 'Only traders can be reassigned to a broker',
+      });
+    }
+
+    const newBroker = await this.adminRepository.findActiveBrokerById(brokerId);
+    if (!newBroker) {
+      throw new NotFoundException({
+        code: ErrorCodes.NOT_FOUND,
+        message: 'Broker not found or is not an active broker',
+      });
+    }
+
+    const oldBrokerId = trader.assignedBrokerId;
+
+    await this.adminRepository.reassignBroker(traderId, brokerId);
+
+    await this.adminRepository.createAuditLog({
+      userId: adminId,
+      action: 'BROKER_REASSIGNED',
+      metadata: {
+        traderId,
+        oldBrokerId,
+        newBrokerId: brokerId,
+      },
+    });
+
+    return { message: 'Trader reassigned successfully' };
   }
 
   /**

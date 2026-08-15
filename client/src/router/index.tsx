@@ -53,6 +53,7 @@ import { AdminBrokerApplications } from "../pages/admin/BrokerApplications";
 import { AdminTopUps } from "../pages/admin/TopUps";
 import { AdminAuditLog } from "../pages/admin/AuditLog";
 import { AdminFlags } from "../pages/admin/Flags";
+import { AdminLearning } from "../pages/admin/Learning";
 
 // ─── Guard Components ────────────────────────────────────────────────────
 
@@ -204,6 +205,7 @@ export const router = createBrowserRouter([
           { path: "/admin/brokers", element: <AdminBrokerApplications /> },
           { path: "/admin/topups", element: <AdminTopUps /> },
           { path: "/admin/flags", element: <AdminFlags /> },
+          { path: "/admin/learning", element: <AdminLearning /> },
           { path: "/admin/audit", element: <AdminAuditLog /> },
         ],
       },

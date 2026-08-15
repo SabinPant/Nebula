@@ -177,6 +177,14 @@ export class GlobalExceptionFilter implements ExceptionFilter {
           code: 'DUPLICATE_BROKER_NUMBER',
         };
       }
+
+      if (target?.includes('slug')) {
+        return {
+          status: HttpStatus.CONFLICT,
+          message: 'A learning resource with this slug already exists',
+          code: 'DUPLICATE_SLUG',
+        };
+      }
     }
 
     // Foreign key violation — referenced record does not exist
