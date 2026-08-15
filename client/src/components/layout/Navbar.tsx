@@ -15,15 +15,13 @@ interface NavbarProps {
 }
 
 const navLinks = [
+  { label: "Home", to: "/" },
   { label: "About", to: "/about" },
   { label: "Contact", to: "/contact" },
   { label: "Learn", to: "/learn" },
 ];
 
-const secondaryLinks = [
-  { label: "Blog", to: "/blog" },
-  { label: "Become a Broker", to: "/broker-apply" },
-];
+const secondaryLinks = [{ label: "Become a Broker", to: "/broker-apply" }];
 
 function MenuIcon() {
   return (

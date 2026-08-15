@@ -72,7 +72,13 @@ function App() {
     );
   }
 
-  return <RouterProvider router={router} />;
+  // v7_startTransition is a RouterProvider prop, not part of
+  // createBrowserRouter's own future config (unlike v7_relativeSplatPath,
+  // which IS router-level and lives in router/index.tsx) — it governs how
+  // this Provider instance wraps its own internal state updates.
+  return (
+    <RouterProvider router={router} future={{ v7_startTransition: true }} />
+  );
 }
 
 export default App;

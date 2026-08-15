@@ -13,7 +13,9 @@ export function Footer() {
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
         <div className="grid grid-cols-2 md:grid-cols-4 gap-10 mb-12">
           <div className="col-span-2 md:col-span-1">
-            <span className="text-xl font-bold text-white">Nebula</span>
+            <Link to="/" className="text-xl font-bold text-white">
+              Nebula
+            </Link>
             <p className="text-sm text-gray-400 mt-2 leading-relaxed">
               Virtual trading and learning platform. Built for education.
             </p>
@@ -23,6 +25,14 @@ export function Footer() {
               Platform
             </p>
             <ul className="space-y-2.5">
+              <li>
+                <Link
+                  to="/"
+                  className="text-sm text-gray-400 hover:text-gray-200 transition-colors"
+                >
+                  Home
+                </Link>
+              </li>
               <li>
                 <Link
                   to="/about"
@@ -39,11 +49,6 @@ export function Footer() {
                   Market
                 </Link>
               </li>
-              <li>
-                <span className="text-sm text-gray-400 hover:text-gray-200 transition-colors cursor-pointer">
-                  AI coaching
-                </span>
-              </li>
             </ul>
           </div>
           <div>
@@ -58,11 +63,6 @@ export function Footer() {
                 >
                   Contact us
                 </Link>
-              </li>
-              <li>
-                <span className="text-sm text-gray-400 hover:text-gray-200 transition-colors cursor-pointer">
-                  Learning resources
-                </span>
               </li>
             </ul>
           </div>
@@ -104,7 +104,7 @@ export function Footer() {
             &copy; {new Date().getFullYear()} Nebula. Built for education.
           </span>
           <div className="flex gap-2.5">
-            {["BSc FYP", "Virtual only", "No real trades"].map((b) => (
+            {["Virtual only", "No real trades"].map((b) => (
               <span
                 key={b}
                 className="text-xs font-medium text-gray-500 border border-primary-800 rounded-md px-2.5 py-1"

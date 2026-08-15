@@ -34,7 +34,6 @@ import { Trade } from "../pages/trader/Trade";
 import { Orders } from "../pages/trader/Orders";
 import { About } from "../pages/About";
 import { Contact } from "../pages/Contact";
-import { Blog } from "../pages/Blog";
 import { PublicLayout } from "../components/layout/PublicLayout";
 import { Learn } from "../pages/Learn";
 import { LearnArticle } from "../pages/LearnArticle";
@@ -164,7 +163,6 @@ export const router = createBrowserRouter([
     children: [
       { path: "/about", element: <About /> },
       { path: "/contact", element: <Contact /> },
-      { path: "/blog", element: <Blog /> },
     ],
   },
 
@@ -233,4 +231,14 @@ export const router = createBrowserRouter([
       },
     ],
   },
-]);
+], {
+  // Opts into React Router v7's relative-splat-path resolution early — a
+  // no-op here (no `path: "*"` routes exist) but the recommended,
+  // non-breaking migration path regardless. v7_startTransition is a
+  // SEPARATE, RouterProvider-level prop (not valid here — TypeScript
+  // rejects it on this config type), set instead in App.tsx where
+  // RouterProvider is actually rendered.
+  future: {
+    v7_relativeSplatPath: true,
+  },
+});
