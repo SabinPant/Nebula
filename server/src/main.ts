@@ -68,6 +68,11 @@ async function bootstrap(): Promise<void> {
       'Authorization',
       'X-Idempotency-Key',
       'X-Device-Id',
+      // Required on POST /auth/refresh — see auth.controller.ts's refresh()
+      // docstring. A cross-site page can't set this header without a CORS
+      // preflight, and the preflight only succeeds for CORS_ORIGIN, so this
+      // closes the one CSRF gap the sameSite:none refresh cookie leaves open.
+      'X-Requested-With',
     ],
   });
 

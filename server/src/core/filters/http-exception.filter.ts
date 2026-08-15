@@ -27,7 +27,10 @@ import {
 } from '@nestjs/common';
 import { Prisma } from '@prisma/client';
 import { Request, Response } from 'express';
-import { TokenExpiredError, JsonWebTokenError, NotBeforeError } from 'jsonwebtoken';
+import { getClearRefreshCookieOptions } from '../../shared/utils/cookie';
+
+// Names (not imported classes — see below) of jsonwebtoken's error types.
+const JWT_ERROR_NAMES = new Set(['TokenExpiredError', 'JsonWebTokenError', 'NotBeforeError']);
 
 @Catch()
 export class GlobalExceptionFilter implements ExceptionFilter {
@@ -63,18 +66,27 @@ export class GlobalExceptionFilter implements ExceptionFilter {
     }
 
     // ─── JWT errors (expired, malformed, or not-yet-valid tokens) ──────────
-    else if (
-      exception instanceof TokenExpiredError ||
-      exception instanceof JsonWebTokenError ||
-      exception instanceof NotBeforeError
-    ) {
+    // Checked by error NAME, not `instanceof TokenExpiredError` — this repo
+    // has two different installed copies of the `jsonwebtoken` package
+    // (@nestjs/jwt bundles 9.0.2, passport-jwt bundles 9.0.3; confirmed via
+    // `npm ls jsonwebtoken`), so an error thrown by one copy's class is not
+    // an `instanceof` the other copy's class even though they're otherwise
+    // identical. This was a real, previously-undiscovered bug: a malformed
+    // (not just missing) refresh token cookie hits AuthService.refreshToken's
+    // direct `jwtService.verify()` call — going through @nestjs/jwt's own
+    // jsonwebtoken instance — and the `instanceof` checks against this
+    // file's separately-resolved import silently failed to match, so the
+    // error fell through to the generic 500 branch below instead of a clean
+    // 401. `.name` is a plain string set by the constructor regardless of
+    // which physical module instance created the error, so it's immune to
+    // this class of module-identity mismatch — caught by
+    // scripts/test-auth-security.ts's "refresh with invalid cookie" case.
+    else if (exception instanceof Error && JWT_ERROR_NAMES.has(exception.name)) {
       status = HttpStatus.UNAUTHORIZED;
       message = 'Invalid or expired token';
       code = 'UNAUTHORIZED';
 
-      this.logger.warn(
-        `JWT error [${exception.constructor.name}]: ${exception.message}`,
-      );
+      this.logger.warn(`JWT error [${exception.name}]: ${exception.message}`);
     }
 
     // ─── Typed HTTP exceptions thrown by services ──────────────────────────
@@ -84,8 +96,29 @@ export class GlobalExceptionFilter implements ExceptionFilter {
 
       if (typeof exceptionResponse === 'object' && exceptionResponse !== null) {
         const resp = exceptionResponse as Record<string, unknown>;
-        message = (resp.message as string) || exception.message;
-        code = (resp.code as string) || 'UNKNOWN_ERROR';
+
+        // NestJS's built-in ValidationPipe throws a BadRequestException
+        // whose response body is { statusCode, message: string[], error }
+        // — an array of per-field validator messages with no `code` field
+        // at all. Every exception hand-thrown anywhere else in this
+        // codebase always sets `code` explicitly (see
+        // shared/constants/errors.ts), so an array `message` is the
+        // unambiguous signature of a DTO validation failure, not a
+        // service-thrown error that merely forgot to set `code`. Without
+        // this branch, `message` silently became the raw array here (the
+        // `(resp.message as string)` cast is compile-time only — arrays
+        // are truthy, so `||` never falls through to exception.message),
+        // breaking the "message is always a human-readable string"
+        // contract every other error response upholds, and `code` fell
+        // through to the catch-all 'UNKNOWN_ERROR' instead of
+        // VALIDATION_ERROR.
+        if (Array.isArray(resp.message)) {
+          message = (resp.message as string[]).join('; ');
+          code = 'VALIDATION_ERROR';
+        } else {
+          message = (resp.message as string) || exception.message;
+          code = (resp.code as string) || 'UNKNOWN_ERROR';
+        }
       } else {
         message = exception.message;
         code = 'UNKNOWN_ERROR';
@@ -117,7 +150,7 @@ export class GlobalExceptionFilter implements ExceptionFilter {
       request.path === '/api/v1/auth/refresh' &&
       (code === 'TOKEN_REVOKED' || code === 'ACCOUNT_SUSPENDED')
     ) {
-      response.clearCookie('refreshToken', { path: '/' });
+      response.clearCookie('refreshToken', getClearRefreshCookieOptions());
     }
 
     // Standardized error response — never exposes internals

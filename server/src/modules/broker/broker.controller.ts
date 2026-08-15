@@ -28,6 +28,7 @@ import { BrokerService } from './broker.service';
 import { CreateBrokerApplicationDto } from './dto/create-broker-application.dto';
 import { Response } from 'express';
 import { BrokerSetupDto } from './dto/broker-setup.dto';
+import { getRefreshCookieOptions } from '../../shared/utils/cookie';
 
 @Controller('broker-applications')
 export class BrokerController {
@@ -97,14 +98,11 @@ export class BrokerController {
   ) {
     const result = await this.brokerService.setupBroker(dto);
 
-    // Set refresh cookie — same env-aware config as auth controller
-    res.cookie('refreshToken', result.refreshToken, {
-      httpOnly: true,
-      secure: process.env.NODE_ENV === 'production',
-      sameSite: (process.env.NODE_ENV === 'production' ? 'none' : 'strict') as 'none' | 'strict',
-      maxAge: 7 * 24 * 60 * 60 * 1000,
-      path: '/api/v1/auth',
-    });
+    // Set refresh cookie — shared/utils/cookie.ts is the single source of
+    // truth (this previously hand-rolled its own options that had drifted:
+    // sameSite: 'strict' in dev instead of 'lax', and a narrower path than
+    // every other login flow uses — see cookie.ts's docstring).
+    res.cookie('refreshToken', result.refreshToken, getRefreshCookieOptions());
 
     const { refreshToken: _, ...response } = result;
     return response;

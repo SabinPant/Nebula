@@ -5,11 +5,19 @@
  * Routes ONLY — no business logic, no database calls, no validation beyond DTOs.
  * Every method receives a validated DTO, calls the service, and returns the response.
  *
- * The login endpoint sets the refresh token as an HTTP-only cookie per the
- * security spec: httpOnly, secure in production, sameSite environment-aware
- * ('strict' in development, 'none' in production for cross-domain
- * Vercel <-> Render requests), scoped to auth routes. The refresh token is
- * never exposed in the response body.
+ * The login/refresh/Google-callback endpoints set the refresh token as an
+ * HTTP-only cookie via shared/utils/cookie.ts's getRefreshCookieOptions() —
+ * httpOnly, secure in production, sameSite environment-aware ('lax' in
+ * development, 'none' in production — required for cross-domain Vercel
+ * <-> Render requests, see that file's docstring for the full reasoning).
+ * The refresh token is never exposed in the response body.
+ *
+ * POST /auth/refresh additionally requires the X-Requested-With header
+ * (see refresh() below) — the one endpoint in this controller that
+ * authenticates via cookie alone needs its own CSRF mitigation, since a
+ * cross-site request can't attach an Authorization header but a sameSite:
+ * none cookie IS sent automatically. See DECISIONS.md for the full CSRF
+ * analysis across every endpoint shape in this API.
  */
 
 import {
@@ -22,6 +30,7 @@ import {
   HttpStatus,
   Res,
   Req,
+  ForbiddenException,
   UnauthorizedException,
   UseGuards,
 } from '@nestjs/common';
@@ -42,6 +51,7 @@ import { ResendVerificationDto } from './dto/resend-verification.dto';
 import { SelectBrokerDto } from './dto/select-broker.dto';
 import { AuthGuard } from '@nestjs/passport';
 import { ConfigService } from '@nestjs/config';
+import { getRefreshCookieOptions, getClearRefreshCookieOptions } from '../../shared/utils/cookie';
 
 @Controller('auth')
 export class AuthController {
@@ -79,7 +89,7 @@ constructor(
       const profile = req.user as { email: string; displayName: string; avatarUrl: string | null };
       const result = await this.authService.googleLogin(profile);
 
-      res.cookie('refreshToken', result.refreshToken, this.getRefreshCookieOptions());
+      res.cookie('refreshToken', result.refreshToken, getRefreshCookieOptions());
 
       const params = `token=${result.accessToken}&deviceId=${result.deviceId}`;
       const redirectPath = result.user.isOnboardingComplete
@@ -109,7 +119,7 @@ constructor(
   ) {
     const result = await this.authService.login(dto);
 
-    res.cookie('refreshToken', result.refreshToken, this.getRefreshCookieOptions());
+    res.cookie('refreshToken', result.refreshToken, getRefreshCookieOptions());
 
     // Return everything except the refresh token in the response body
     const { refreshToken: _, ...response } = result;
@@ -126,13 +136,45 @@ constructor(
    *
    * No JWT guard — the refresh cookie is the credential. Expired access tokens
    * (the primary reason clients call this endpoint) would be rejected by the guard.
+   *
+   * CSRF mitigation: every other state-changing route in this API requires
+   * an Authorization: Bearer header, which a cross-site request can't
+   * attach (see DECISIONS.md — that's sufficient CSRF protection on its
+   * own, no token needed). This is the one route that authenticates
+   * purely via cookie, and in production that cookie is sameSite: none
+   * (required for the cross-domain Vercel/Render deployment — see
+   * cookie.ts), so it IS sent automatically on a cross-site request. The
+   * X-Requested-With check closes that gap the same way Bearer headers
+   * close it everywhere else: browsers refuse to let a page on another
+   * origin attach a custom header without a CORS preflight, and the
+   * preflight only succeeds for the whitelisted CORS_ORIGIN — a plain
+   * HTML <form> POST (the classic no-JS CSRF vector) can't set custom
+   * headers at all, so it's blocked unconditionally.
+   *
+   * Rate limited more generously than login (RATE_LIMITS.REFRESH, not
+   * RATE_LIMITS.LOGIN) — this endpoint is hit by normal token rotation
+   * on every access-token expiry (~every 15 min) across every open tab
+   * and device, which a login-strength limit collided with in Sprint 4
+   * (see STATUS.md/DECISIONS.md) and had to be removed entirely. This
+   * limit is wide enough to never trouble legitimate multi-tab/
+   * multi-device usage while still bounding abuse of a stolen cookie.
    */
   @Post('refresh')
   @HttpCode(HttpStatus.OK)
+  @Throttle({ default: { limit: RATE_LIMITS.REFRESH.limit, ttl: RATE_LIMITS.REFRESH.ttl } })
   async refresh(
     @Req() req: Request,
     @Res({ passthrough: true }) res: Response,
   ) {
+    // CSRF guard — see the docstring above. Checked before touching the
+    // cookie or Redis so a forged request is rejected as cheaply as possible.
+    if (req.headers['x-requested-with'] !== 'XMLHttpRequest') {
+      throw new ForbiddenException({
+        code: 'FORBIDDEN',
+        message: 'Invalid request',
+      });
+    }
+
     // Read refresh token from HTTP-only cookie
     const oldRefreshToken = req.cookies?.refreshToken;
 
@@ -154,7 +196,7 @@ constructor(
       oldAccessToken,
     );
 
-    res.cookie('refreshToken', result.refreshToken, this.getRefreshCookieOptions());
+    res.cookie('refreshToken', result.refreshToken, getRefreshCookieOptions());
 
     // Return only the access token — refresh token is in the cookie
     return { accessToken: result.accessToken };
@@ -233,7 +275,7 @@ async me(@Req() req: Request) {
     await this.authService.logout(user.id, jti!, deviceId);
 
     // Clear the refresh cookie regardless — it's no longer valid
-    res.clearCookie('refreshToken', { path: '/api/v1/auth' });
+    res.clearCookie('refreshToken', getClearRefreshCookieOptions());
 
     return { message: 'Logged out successfully' };
   }
@@ -309,20 +351,4 @@ async me(@Req() req: Request) {
   async resendVerification(@Body() dto: ResendVerificationDto) {
     return this.authService.resendVerification(dto.email);
   }
-
-    /**
-   * Returns the standard HTTP-only cookie options for refresh tokens.
-   * Single source of truth — login and refresh both use this so the
-   * cookie configuration never drifts out of sync.
-   */
-  private getRefreshCookieOptions() {
-    return {
-      httpOnly: true,
-      secure: process.env.NODE_ENV === 'production',
-      sameSite: (process.env.NODE_ENV === 'production' ? 'none' : 'lax') as 'none' | 'lax',
-      maxAge: 7 * 24 * 60 * 60 * 1000, // 7 days
-      path: '/',
-    };
-  }
-
 }

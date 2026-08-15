@@ -35,11 +35,24 @@ export interface AccessTokenPayload {
 
 /**
  * Payload embedded in refresh tokens.
- * No jti needed — refresh tokens are tracked by Redis hash key.
+ * jti is optional in the input — generateRefreshToken() injects it
+ * automatically, same as AccessTokenPayload. Refresh tokens are tracked
+ * by Redis hash key (not by jti — there's no blacklist lookup by jti for
+ * refresh tokens), but the jti is still needed for token UNIQUENESS: JWT
+ * `iat` has one-second granularity, and {sub, deviceId} alone is constant
+ * across an entire rotation chain for the same device, so two rotations
+ * within the same wall-clock second would otherwise produce byte-identical
+ * tokens (same header, payload, iat, exp -> same HMAC signature). That
+ * collision defeats the reuse-detection check in
+ * AuthService.refreshToken() during that window — the "old" and "new"
+ * tokens being textually identical means presenting the old one again
+ * isn't distinguishable from presenting the current one. Caught by
+ * scripts/test-auth-security.ts's refresh-rotation scenario.
  */
 export interface RefreshTokenPayload {
   sub: string;
   deviceId: string;
+  jti?: string;
 }
 
 /**
@@ -71,16 +84,22 @@ export function generateAccessToken(
 
 /**
  * Generates a refresh token for the given user and device.
+ * Injects a jti automatically via spread, same pattern as
+ * generateAccessToken() — see RefreshTokenPayload's docstring for why
+ * this is needed despite refresh tokens not using a jti-keyed blacklist.
  */
 export function generateRefreshToken(
   jwtService: JwtService,
   configService: ConfigService,
   payload: RefreshTokenPayload,
 ): string {
-  return jwtService.sign(payload, {
-    secret: configService.get<string>('JWT_REFRESH_SECRET'),
-    expiresIn: configService.get<string>('JWT_REFRESH_EXPIRY'),
-  });
+  return jwtService.sign(
+    { ...payload, jti: randomUUID() },
+    {
+      secret: configService.get<string>('JWT_REFRESH_SECRET'),
+      expiresIn: configService.get<string>('JWT_REFRESH_EXPIRY'),
+    },
+  );
 }
 
 /**

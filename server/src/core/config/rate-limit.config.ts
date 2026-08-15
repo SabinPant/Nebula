@@ -26,6 +26,16 @@ export const RATE_LIMITS = {
     limit: 3,
     ttl: 3_600_000, // 1 hour in ms
   },
+  // Deliberately much higher than LOGIN — this endpoint fires on every
+  // access-token expiry (~every 15 min) across every open tab and device,
+  // not on a human typing a password. A login-strength limit was tried
+  // here in Sprint 4 and had to be reverted entirely (it collided with
+  // legitimate multi-tab rotation); this is wide enough to never trouble
+  // real usage while still bounding abuse of a stolen refresh cookie.
+  REFRESH: {
+    limit: 20,
+    ttl: 300_000, // 5 minutes in ms
+  },
 
   // Trading
   ORDERS: {
