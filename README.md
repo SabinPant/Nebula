@@ -11,9 +11,9 @@
 
 <br/><br/>
 
-# Nebula — Virtual Stock Trading & Learning Platform
+# Nebula Virtual Stock Trading & Learning Platform
 
-**A virtual stock trading and market-education platform built on NestJS and React — combining a custom real-time market simulation engine, broker-mediated collateral management, and full administrative oversight, all under strict layered architecture.**
+**A virtual stock trading and market-education platform built on NestJS and React combining a custom real-time market simulation engine, broker-mediated collateral management, and full administrative oversight, all under strict layered architecture.**
 
 </div>
 
