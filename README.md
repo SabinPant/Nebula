@@ -46,7 +46,6 @@
 | **Client State**       | Zustand (UI state), React Query (server state)             |
 | **Authentication**     | Passport.js — JWT + Google OAuth 2.0                       |
 | **Validation**         | class-validator / class-transformer (server), Zod (engine) |
-| **AI Integration**     | Google Gemini API                                          |
 | **File Storage**       | Cloudinary                                                 |
 | **Email**              | Nodemailer (SMTP), Mailhog in development                  |
 | **Logging**            | Winston                                                    |
